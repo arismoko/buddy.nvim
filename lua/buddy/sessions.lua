@@ -399,8 +399,16 @@ function M.cleanup_stale(max_age_seconds)
   local to_remove = {}
 
   for id, data in pairs(sessions) do
+    local dominated_by_age = false
     local last_seen = data.last_seen or data.started_at or 0
     if (now - last_seen) > max_age_seconds then
+      dominated_by_age = true
+    end
+
+    -- Also remove if PID is dead (regardless of age)
+    local pid_dead = data.pid and not is_pid_alive(data.pid)
+
+    if dominated_by_age or pid_dead then
       table.insert(to_remove, id)
     end
   end
