@@ -79,6 +79,7 @@ function M.start()
 
   -- Register this session for multi-session support
   local sessions = require("buddy.sessions")
+  sessions.cleanup_stale()  -- Clean up dead sessions first
   sessions.register({
     port = cfg.port,
     host = cfg.host,
