@@ -1,0 +1,37 @@
+name: Generate Vimdoc
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'README.md'
+      - 'docs/**'
+      - '.github/workflows/vimdoc.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vimdoc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate vimdoc
+        uses: kdheepak/panvimdoc@main
+        with:
+          vimdoc: buddy
+          version: "Neovim >= 0.10.0"
+          description: "MCP server for Neovim"
+          pandoc: "README.md"
+          toc: true
+          treesitter: true
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: auto-generate vimdoc"
+          file_pattern: "doc/*.txt"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
