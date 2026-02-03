@@ -1,0 +1,354 @@
+*buddy-tools.txt*  Tool reference for buddy
+
+This document describes all available buddy tools.
+Each tool can be called by AI assistants through MCP.
+
+For main documentation, see |buddy|.
+
+TOOLS                                              *buddy-tools*
+
+  |buddy.tools.buffer|
+  |buddy.tools.command|
+  |buddy.tools.dashboard|
+  |buddy.tools.diagnostics|
+  |buddy.tools.dotfyle_search|
+  |buddy.tools.edit|
+  |buddy.tools.fold|
+  |buddy.tools.grep|
+  |buddy.tools.init|
+  |buddy.tools.macro|
+  |buddy.tools.navigation|
+  |buddy.tools.register|
+  |buddy.tools.search|
+  |buddy.tools.status|
+  |buddy.tools.tab|
+  |buddy.tools.visual|
+  |buddy.tools.window|
+
+==============================================================================
+
+buddy.tools.buffer                              *buddy.tools.buffer*
+
+Read and list Neovim buffers
+
+Parameters: ~
+  {action}  (required)
+      Type: list | get_content | get_info
+      list: all loaded buffers, get_content: buffer text, get_info: buffer
+      metadata
+
+  {bufnr}  (optional)
+      Type: number
+      Buffer number. Optional - defaults to current buffer if omitted.
+
+------------------------------------------------------------------------------
+
+buddy.tools.command                            *buddy.tools.command*
+
+Execute Vim commands
+
+Parameters: ~
+  {cmd}  (required)
+      Type: string
+      The Vim command to execute (e.g., 'write', 'edit file.txt', 'split')
+
+------------------------------------------------------------------------------
+
+buddy.tools.dashboard                        *buddy.tools.dashboard*
+
+View all buddy tools and navigate to their source files
+
+------------------------------------------------------------------------------
+
+buddy.tools.diagnostics                    *buddy.tools.diagnostics*
+
+Get LSP diagnostics from Neovim
+
+Parameters: ~
+  {bufnr}  (optional)
+      Type: number
+      Buffer number. Optional - omit for all buffers, 0 for current buffer.
+
+  {path}  (optional)
+      Type: string
+      Filter diagnostics to files matching this path pattern.
+
+  {pattern}  (optional)
+      Type: string
+      Glob pattern for scan_dir (default: '**/*.lua').
+
+  {scan_dir}  (optional)
+      Type: string
+      Directory to scan for files. Opens matching files to trigger LSP
+      diagnostics.
+
+  {severity}  (optional)
+      Type: error | warn | info | hint | all
+      Filter by severity level. Defaults to 'all'.
+
+------------------------------------------------------------------------------
+
+buddy.tools.dotfyle_search              *buddy.tools.dotfyle_search*
+
+Search for Neovim plugins on Dotfyle
+
+Parameters: ~
+  {message}  (optional)
+      Type: string
+      Search query for plugins (optional)
+
+------------------------------------------------------------------------------
+
+buddy.tools.edit                                  *buddy.tools.edit*
+
+Edit buffer content
+
+Parameters: ~
+  {action}  (required)
+      Type: insert | replace | delete | replace_all
+      insert: insert lines at position, replace: replace line range, delete:
+      delete line range, replace_all: replace entire buffer content
+
+  {content}  (optional)
+      Type: string
+      Content to insert/replace (string or array of strings)
+
+  {end_line}  (optional)
+      Type: number
+      End line for replace/delete range
+
+  {line}  (required)
+      Type: number
+      Line number (1-indexed) for insert/replace/delete
+
+------------------------------------------------------------------------------
+
+buddy.tools.fold                                  *buddy.tools.fold*
+
+Manage code folds
+
+Parameters: ~
+  {action}  (required)
+      Type: create | open | close | toggle | open_all | close_all | delete
+      create: create fold from start_line to end_line, open: open fold, close:
+      close fold, toggle: toggle fold, open_all/close_all:
+      expand/collapse all folds, delete: remove fold at line
+
+  {end_line}  (optional)
+      Type: number
+      Ending line for create action.
+
+  {start_line}  (optional)
+      Type: number
+      Starting line for create action.
+
+------------------------------------------------------------------------------
+
+buddy.tools.grep                                  *buddy.tools.grep*
+
+Project-wide search using vimgrep with quickfix list
+
+Parameters: ~
+  {file_pattern}  (optional)
+      Type: string
+      File pattern to search in (default: **/* for all files)
+
+  {pattern}  (required)
+      Type: string
+      Search pattern to grep for
+
+------------------------------------------------------------------------------
+
+buddy.tools.init                                  *buddy.tools.init*
+
+Scaffold a new buddy Lua tool with the correct structure
+
+Parameters: ~
+  {description}  (optional)
+      Type: string
+      Tool description (optional)
+
+  {name}  (required)
+      Type: string
+      Tool name (snake_case, e.g. 'my_tool')
+
+  {template}  (optional)
+      Type: basic | async | plugin | full
+      Template type to use
+
+------------------------------------------------------------------------------
+
+buddy.tools.macro                                *buddy.tools.macro*
+
+Record and play macros
+
+Parameters: ~
+  {action}  (required)
+      Type: record | stop | play
+      record: start recording macro, stop: stop recording, play: execute macro
+
+  {count}  (optional)
+      Type: number
+      Number of times to play macro. Defaults to 1.
+
+  {register}  (optional)
+      Type: string
+      Register to use (a-z). Defaults to 'q'.
+
+------------------------------------------------------------------------------
+
+buddy.tools.navigation                      *buddy.tools.navigation*
+
+Navigate Neovim: marks, jumps, and cursor movement
+
+Parameters: ~
+  {action}  (required)
+      Type: goto_line | goto_file | set_mark | goto_mark | jump_back |
+      jump_forward | jump_list
+      goto_line: jump to line, goto_file: open file, set_mark: set mark,
+      goto_mark: jump to mark, jump_back: go back in jumplist,
+      jump_forward: go forward, jump_list: list jumps
+
+  {column}  (optional)
+      Type: number
+      Column number for goto_line or set_mark (0-indexed)
+
+  {file}  (optional)
+      Type: string
+      File path for goto_file
+
+  {line}  (optional)
+      Type: number
+      Line number for goto_line or set_mark (1-indexed)
+
+  {mark}  (optional)
+      Type: string
+      Mark character (a-z) for set_mark or goto_mark
+
+------------------------------------------------------------------------------
+
+buddy.tools.register                          *buddy.tools.register*
+
+Access Neovim registers
+
+Parameters: ~
+  {action}  (required)
+      Type: get | set | list
+      get: retrieve register content, set: set register content, list: list
+      all non-empty registers
+
+  {content}  (optional)
+      Type: string
+      Content to set (required for set action)
+
+  {name}  (optional)
+      Type: string
+      Register name (a-z, ", +, *, 0-9)
+
+------------------------------------------------------------------------------
+
+buddy.tools.search                              *buddy.tools.search*
+
+Search and replace in current buffer
+
+Parameters: ~
+  {action}  (required)
+      Type: find | find_replace
+      find: search for pattern, find_replace: search and replace
+
+  {global}  (optional)
+      Type: boolean
+      Replace all occurrences (for find_replace)
+
+  {ignore_case}  (optional)
+      Type: boolean
+      Case insensitive search
+
+  {pattern}  (required)
+      Type: string
+      Search pattern
+
+  {replacement}  (optional)
+      Type: string
+      Replacement text (for find_replace)
+
+  {whole_word}  (optional)
+      Type: boolean
+      Match whole words only
+
+------------------------------------------------------------------------------
+
+buddy.tools.status                              *buddy.tools.status*
+
+Get comprehensive Neovim status including cursor position, mode, marks, and
+registers
+
+------------------------------------------------------------------------------
+
+buddy.tools.tab                                    *buddy.tools.tab*
+
+Manage Neovim tabs
+
+Parameters: ~
+  {action}  (required)
+      Type: list | new | close | next | prev | goto | first | last
+      list: all tabs, new: create new tab, close: close current tab,
+      next/prev: navigate tabs, goto: jump to specific tab, first/last:
+      jump to first/last tab
+
+  {file}  (optional)
+      Type: string
+      File path for new tab. Optional.
+
+  {tabnr}  (optional)
+      Type: number
+      Tab number for goto action.
+
+------------------------------------------------------------------------------
+
+buddy.tools.visual                              *buddy.tools.visual*
+
+Create visual selections
+
+Parameters: ~
+  {end_col}  (required)
+      Type: number
+      Ending column (0-indexed)
+
+  {end_line}  (required)
+      Type: number
+      Ending line (1-indexed)
+
+  {start_col}  (required)
+      Type: number
+      Starting column (0-indexed)
+
+  {start_line}  (required)
+      Type: number
+      Starting line (1-indexed)
+
+------------------------------------------------------------------------------
+
+buddy.tools.window                              *buddy.tools.window*
+
+Manage Neovim windows
+
+Parameters: ~
+  {action}  (required)
+      Type: list | focus | split | vsplit | close | only
+      list: all windows, focus: focus a window, split: horizontal split,
+      vsplit: vertical split, close: close window, only: keep only
+      current window
+
+  {direction}  (optional)
+      Type: h | j | k | l
+      Direction for focus action: h=left, j=down, k=up, l=right
+
+  {winnr}  (optional)
+      Type: number
+      Window number. Optional - defaults to current window for focus/close
+      actions.
+
+------------------------------------------------------------------------------
+
+ vim:tw=78:ts=8:ft=help:norl:

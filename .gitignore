@@ -1,0 +1,11 @@
+references/
+deps/
+
+# Node/Bun
+node_modules/
+bun.lock
+
+# Auto-generated linter config
+.markdownlint.yaml
+.references/
+deps/

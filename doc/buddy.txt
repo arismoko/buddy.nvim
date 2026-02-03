@@ -1,0 +1,262 @@
+                                                                    *buddy*
+*buddy.txt*  MCP server for Neovim
+
+buddy is an MCP (Model Context Protocol) server for Neovim.
+It enables AI assistants to interact with your editor through tools.
+
+For tool reference, see |buddy-tools|.
+
+Quick start: >lua
+  require("buddy").setup({
+    auto_start = true,
+    port = 7234,
+  })
+<
+
+Table of contents:
+  Introduction .................................................. |buddy|
+  Configuration .......................................... |buddy-config|
+  Tool Execution ....................................... |buddy-executor|
+  Testing Utilities ..................................... |buddy-testing|
+
+------------------------------------------------------------------------------
+                                                                     *buddy.setup()*
+                               `buddy.setup`({opts})
+Setup buddy with the given options
+
+Parameters ~
+{opts} `(table|nil)` Configuration options
+Fields ~
+{host} `(string)` Server host (default: "127.0.0.1")
+{port} `(number)` Server port (default: 7234)
+{auto_start} `(boolean)` Start server automatically (default: false)
+{debug} `(boolean)` Enable debug logging (default: false)
+{tools_dir} `(string|nil)` Custom tools directory
+{tools} `(table)` Per-tool configuration
+
+Usage ~
+`require("buddy").setup({ auto_start = true })`
+
+------------------------------------------------------------------------------
+                                                                     *buddy.start()*
+                                  `buddy.start`()
+Start the MCP server
+Return ~
+`(boolean)` success
+
+------------------------------------------------------------------------------
+                                                                      *buddy.stop()*
+                                   `buddy.stop`()
+Stop the MCP server
+Return ~
+`(boolean)` success
+
+------------------------------------------------------------------------------
+                                                        *buddy.reinstall_examples()*
+                            `buddy.reinstall_examples`()
+Reinstall example tools (overwrites existing examples, preserves user tools)
+
+------------------------------------------------------------------------------
+                                                                    *buddy.status()*
+                                  `buddy.status`()
+Get server status
+Return ~
+`(table)` status { running: boolean, port: number|nil }
+
+------------------------------------------------------------------------------
+                                                                      *buddy.call()*
+                         `buddy.call`({tool_name}, {args})
+Call a tool programmatically by name
+Parameters ~
+{tool_name} `(string)` The tool name to call
+{args} `(optional)` `(table)` Arguments to pass to the tool
+Return ~
+`(table|nil)` result The tool result
+
+------------------------------------------------------------------------------
+                                                             *buddy.register_tool()*
+                       `buddy.register_tool`({tool}, {opts})
+Register a tool programmatically
+Parameters ~
+{tool} `(table)` Tool definition with metadata and run function
+{opts} `(optional)` `(table)` Optional configuration to pass to the tool
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                             *buddy-config*
+
+Configuration options for buddy.
+
+------------------------------------------------------------------------------
+                                                             *buddy.get_tools_dir()*
+                              `buddy.get_tools_dir`()
+Get the effective tools directory
+Return ~
+`(string)`
+
+------------------------------------------------------------------------------
+                                                             *buddy.get_tool_opts()*
+                           `buddy.get_tool_opts`({name})
+Get configuration for a specific tool
+Parameters ~
+{name} `(string)` Tool name
+Return ~
+`(table)` Tool-specific options (empty table if not configured)
+
+------------------------------------------------------------------------------
+                                                           *buddy.is_tool_enabled()*
+                          `buddy.is_tool_enabled`({name})
+Check if a tool is enabled
+Parameters ~
+{name} `(string)` Tool name
+Return ~
+`(boolean)`
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                           *buddy-executor*
+
+Tool execution with async support and cancellation.
+
+------------------------------------------------------------------------------
+                                                                   *buddy.execute()*
+                   `buddy.execute`({tool_id}, {args}, {callback})
+Execute a Lua tool (sync or async)
+Parameters ~
+{tool_id} `(string)`
+{args} `(table)`
+{callback} `(function|nil)` Called with (err, result) for async tools
+Return ~
+`(table|nil)` result for sync, nil for async
+Return ~
+`(string|nil)` task_id for async tools (to cancel)
+
+------------------------------------------------------------------------------
+                                                                    *buddy.cancel()*
+                             `buddy.cancel`({task_id})
+Cancel a running async task
+Parameters ~
+{task_id} `(string)`
+Return ~
+`(boolean)` success
+
+------------------------------------------------------------------------------
+                                                              *buddy.list_running()*
+                               `buddy.list_running`()
+List running tasks (for debugging)
+Return ~
+`(table)`
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                            *buddy-testing*
+
+Testing utilities for buddy tool authors.
+Provides helpers to test tools without full Neovim setup.
+
+------------------------------------------------------------------------------
+Class ~
+{ToolTestContext}
+Fields ~
+{tool} `(table)` The tool being tested
+{opts} `(table)` Tool options
+{results} `(table[])` Collected results from run calls
+
+------------------------------------------------------------------------------
+                                                            *buddy.create_context()*
+                       `buddy.create_context`({tool}, {opts})
+Create a test context for a tool
+Provides isolated testing without registering the tool
+Parameters ~
+{tool} `(table)` Tool definition (must have metadata and run)
+{opts} `(table|nil)` Tool options to pass
+Return ~
+`(ToolTestContext)`
+
+------------------------------------------------------------------------------
+                                                                       *buddy.run()*
+                             `buddy.run`({ctx}, {args})
+Run a tool with given args and capture result
+Validates input against schema before running
+Parameters ~
+{ctx} `(ToolTestContext)`
+{args} `(table)` Input arguments
+Return ~
+`(boolean)` success
+Return ~
+`(any)` result_or_error
+
+------------------------------------------------------------------------------
+                                                              *buddy.assert_valid()*
+                        `buddy.assert_valid`({tool}, {args})
+Assert that args pass schema validation
+Parameters ~
+{tool} `(table)` Tool with metadata.input_schema
+{args} `(table)` Arguments to validate
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                            *buddy.assert_invalid()*
+             `buddy.assert_invalid`({tool}, {args}, {expected_pattern})
+Assert that args fail schema validation
+Parameters ~
+{tool} `(table)` Tool with metadata.input_schema
+{args} `(table)` Arguments to validate
+{expected_pattern} `(string|nil)` Optional pattern to match in error
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                           *buddy.assert_succeeds()*
+                       `buddy.assert_succeeds`({ctx}, {args})
+Assert that running a tool succeeds
+Parameters ~
+{ctx} `(ToolTestContext)`
+{args} `(table)`
+Return ~
+`(any)` result
+
+------------------------------------------------------------------------------
+                                                              *buddy.assert_fails()*
+                `buddy.assert_fails`({ctx}, {args}, {expected_code})
+Assert that running a tool fails
+Parameters ~
+{ctx} `(ToolTestContext)`
+{args} `(table)`
+{expected_code} `(string|nil)` Expected error code
+Return ~
+`(any)` error
+
+------------------------------------------------------------------------------
+                                                  *buddy.assert_metadata_complete()*
+                      `buddy.assert_metadata_complete`({tool})
+Assert tool metadata is complete
+Parameters ~
+{tool} `(table)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
+                                                               *buddy.mock_buffer()*
+                            `buddy.mock_buffer`({lines})
+Create a mock Neovim buffer for testing buffer-related tools
+Parameters ~
+{lines} `(string[])` Initial buffer lines
+Return ~
+`(table)` mock_buffer
+
+------------------------------------------------------------------------------
+                                                                 *buddy.mock_opts()*
+                           `buddy.mock_opts`({overrides})
+Create mock opts with common defaults
+Parameters ~
+{overrides} `(table|nil)`
+Return ~
+`(table)`
+
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
