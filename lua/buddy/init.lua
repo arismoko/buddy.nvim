@@ -77,6 +77,13 @@ function M.start()
 
   M._server = server.start(cfg.host, cfg.port)
 
+  -- Register this session for multi-session support
+  local sessions = require("buddy.sessions")
+  sessions.register({
+    port = cfg.port,
+    host = cfg.host,
+  })
+
   -- Start hot reload watching if enabled
   if cfg.watch then
     local hotreload = require("buddy.tools.hotreload")
@@ -90,6 +97,10 @@ function M.stop()
   -- Stop hot reload watching
   local hotreload = require("buddy.tools.hotreload")
   hotreload.stop_watching()
+
+  -- Unregister session
+  local sessions = require("buddy.sessions")
+  sessions.unregister()
 
   if M._server then
     M._server:stop()
