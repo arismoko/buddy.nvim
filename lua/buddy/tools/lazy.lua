@@ -135,6 +135,21 @@ function M.clear_by_runtime(runtime)
   end
 end
 
+--- Clear cached tools by prefix (for hot-reload)
+---@param prefix string Plugin prefix (e.g., "buddy_viz")
+function M.clear_by_prefix(prefix)
+  local to_clear = {}
+  for path, _ in pairs(loaded_cache) do
+    -- Match paths containing the prefix
+    if path:match("lua/" .. vim.pesc(prefix) .. "/") then
+      table.insert(to_clear, path)
+    end
+  end
+  for _, path in ipairs(to_clear) do
+    M.clear_cache(path)
+  end
+end
+
 --- Check if a tool is loaded
 ---@param path string
 ---@return boolean

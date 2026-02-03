@@ -62,6 +62,28 @@ function M.clear_runtimepath_tools()
   end
 end
 
+--- Clear tools from a specific source/prefix (for hot reload)
+---@param source string The source prefix (e.g., "buddy_viz")
+function M.clear_by_source(source)
+  local to_remove = {}
+  for key, tool in pairs(tools) do
+    if tool.source == source then
+      table.insert(to_remove, key)
+    end
+  end
+  for _, key in ipairs(to_remove) do
+    tools[key] = nil
+  end
+
+  if #to_remove > 0 then
+    -- Notify that tools have changed
+    local methods = require("buddy.mcp.methods")
+    if methods.notify_tools_changed then
+      methods.notify_tools_changed()
+    end
+  end
+end
+
 --- Check if a tool is disabled in config
 ---@param tool_name string
 ---@return boolean

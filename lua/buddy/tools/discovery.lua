@@ -71,4 +71,55 @@ function M.reload_all()
   M.discover()
 end
 
+--- Register a pack (internal helper for hotreload)
+---@param pack table The buddy pack (single tool or { tools = {...} })
+---@param path string Path to buddy.lua file
+---@param prefix string Plugin prefix (e.g., "buddy_viz")
+function M._register_pack(pack, path, prefix)
+  if type(pack) ~= "table" then
+    log.warn("Invalid pack from %s", path)
+    return 0
+  end
+
+  local tools_to_register = {}
+  if pack.tools then
+    tools_to_register = pack.tools
+  else
+    table.insert(tools_to_register, pack)
+  end
+
+  local count = 0
+  for _, tool in ipairs(tools_to_register) do
+    local valid, err = validate_tool(tool, path)
+    if valid then
+      tool.runtime = "runtimepath"
+      tool.source = prefix
+      registry.register(tool)
+      count = count + 1
+    else
+      log.warn(err)
+    end
+  end
+
+  log.debug("Registered %d tools from %s", count, prefix)
+  return count
+end
+
+--- Discover and register a single plugin (internal helper for hotreload)
+---@param prefix string Plugin prefix
+---@param path string Path to buddy.lua file
+function M._discover_one(prefix, path)
+  local module = prefix .. ".buddy"
+
+  -- Clear from package cache
+  package.loaded[module] = nil
+
+  local ok, pack = pcall(require, module)
+  if ok and type(pack) == "table" then
+    M._register_pack(pack, path, prefix)
+  elseif not ok then
+    log.warn("Failed to load buddy pack %s: %s", module, tostring(pack))
+  end
+end
+
 return M
