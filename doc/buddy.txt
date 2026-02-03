@@ -1,262 +1,403 @@
-                                                                    *buddy*
-*buddy.txt*  MCP server for Neovim
+*buddy.txt*                                              MCP server for Neovim
 
-buddy is an MCP (Model Context Protocol) server for Neovim.
-It enables AI assistants to interact with your editor through tools.
+==============================================================================
+Table of Contents                                    *buddy-table-of-contents*
 
-For tool reference, see |buddy-tools|.
+1. buddy.nvim                                               |buddy-buddy.nvim|
+  - Installation                               |buddy-buddy.nvim-installation|
+  - Connecting to MCP Clients     |buddy-buddy.nvim-connecting-to-mcp-clients|
+  - Security                                       |buddy-buddy.nvim-security|
+  - Built-in Tools                           |buddy-buddy.nvim-built-in-tools|
+  - Creating Tools                           |buddy-buddy.nvim-creating-tools|
+  - Configuration                             |buddy-buddy.nvim-configuration|
+  - API                                                 |buddy-buddy.nvim-api|
+  - Requirements                               |buddy-buddy.nvim-requirements|
+  - Troubleshooting                         |buddy-buddy.nvim-troubleshooting|
+  - License                                         |buddy-buddy.nvim-license|
 
-Quick start: >lua
-  require("buddy").setup({
-    auto_start = true,
-    port = 7234,
-  })
+==============================================================================
+1. buddy.nvim                                               *buddy-buddy.nvim*
+
+**Lua tools that work as keymaps AND as MCP tools.**
+
+
+
+------------------------------------------------------------------------------
+I wanted AI tooling in Neovim without leaving for another editor. So I built
+this.
+
+buddy.nvim runs an MCP server <https://modelcontextprotocol.io/> inside Neovim.
+Claude, OpenCode, or any MCP client can connect and actually control your
+editor: read buffers, edit files, run commands, navigate. Not just chat.
+
+You write tools in Lua. They work as MCP tools (AI calls them) _and_ as regular
+Neovim plugins (keymaps, commands, autocmds). Same code, both interfaces.
+
+------------------------------------------------------------------------------
+
+INSTALLATION                                   *buddy-buddy.nvim-installation*
+
+
+LAZY.NVIM ~
+
+>lua
+    {
+      "arismoko/buddy.nvim",
+      dependencies = { "echasnovski/mini.nvim" },
+      lazy = false,
+      config = function()
+        require("buddy").setup({
+          auto_start = true,
+          port = 7234,
+        })
+      end,
+    }
 <
 
-Table of contents:
-  Introduction .................................................. |buddy|
-  Configuration .......................................... |buddy-config|
-  Tool Execution ....................................... |buddy-executor|
-  Testing Utilities ..................................... |buddy-testing|
+
+PACKER.NVIM ~
+
+>lua
+    use {
+      "arismoko/buddy.nvim",
+      requires = { "echasnovski/mini.nvim" },
+      config = function()
+        require("buddy").setup({
+          auto_start = true,
+          port = 7234,
+        })
+      end,
+    }
+<
+
+
+MANUAL ~
+
+Clone to your Neovim packages directory:
+
+>bash
+    git clone https://github.com/arismoko/buddy.nvim ~/.local/share/nvim/site/pack/plugins/start/buddy.nvim
+<
 
 ------------------------------------------------------------------------------
-                                                                     *buddy.setup()*
-                               `buddy.setup`({opts})
-Setup buddy with the given options
 
-Parameters ~
-{opts} `(table|nil)` Configuration options
-Fields ~
-{host} `(string)` Server host (default: "127.0.0.1")
-{port} `(number)` Server port (default: 7234)
-{auto_start} `(boolean)` Start server automatically (default: false)
-{debug} `(boolean)` Enable debug logging (default: false)
-{tools_dir} `(string|nil)` Custom tools directory
-{tools} `(table)` Per-tool configuration
+CONNECTING TO MCP CLIENTS         *buddy-buddy.nvim-connecting-to-mcp-clients*
 
-Usage ~
-`require("buddy").setup({ auto_start = true })`
+nvim-buddy uses **HTTP + Server-Sent Events (SSE)** transport, compatible with
+modern MCP clients.
 
-------------------------------------------------------------------------------
-                                                                     *buddy.start()*
-                                  `buddy.start`()
-Start the MCP server
-Return ~
-`(boolean)` success
 
-------------------------------------------------------------------------------
-                                                                      *buddy.stop()*
-                                   `buddy.stop`()
-Stop the MCP server
-Return ~
-`(boolean)` success
+OPENCODE ~
 
-------------------------------------------------------------------------------
-                                                        *buddy.reinstall_examples()*
-                            `buddy.reinstall_examples`()
-Reinstall example tools (overwrites existing examples, preserves user tools)
+Add to `~/.config/opencode/opencode.jsonc`:
 
-------------------------------------------------------------------------------
-                                                                    *buddy.status()*
-                                  `buddy.status`()
-Get server status
-Return ~
-`(table)` status { running: boolean, port: number|nil }
+>jsonc
+    {
+      "mcp": {
+        "buddy": {
+          "type": "remote",
+          "url": "http://127.0.0.1:7234/sse"
+        }
+      }
+    }
+<
+
+
+CLAUDE DESKTOP ~
+
+Add to your Claude Desktop config: - **macOS**: `~/Library/Application
+Support/Claude/claude_desktop_config.json` - **Windows**:
+`%APPDATA%\Claude\claude_desktop_config.json` - **Linux**:
+`~/.config/Claude/claude_desktop_config.json`
+
+>json
+    {
+      "mcpServers": {
+        "buddy": {
+          "url": "http://127.0.0.1:7234/sse"
+        }
+      }
+    }
+<
 
 ------------------------------------------------------------------------------
-                                                                      *buddy.call()*
-                         `buddy.call`({tool_name}, {args})
-Call a tool programmatically by name
-Parameters ~
-{tool_name} `(string)` The tool name to call
-{args} `(optional)` `(table)` Arguments to pass to the tool
-Return ~
-`(table|nil)` result The tool result
+
+SECURITY                                           *buddy-buddy.nvim-security*
+
+By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only
+local processes can connect.
+
+**To expose on LAN** (e.g., for remote AI clients):
+
+>lua
+    require("nvim-buddy").setup({
+      host = "0.0.0.0",  -- Listen on all interfaces
+    })
+<
+
+⚠️ **Warning**: There is no authentication or TLS. If you bind to
+`0.0.0.0`, anyone on your network can control your editor. Consider: - Using a
+firewall to restrict access - SSH tunneling for remote access - Only enabling
+on trusted networks
 
 ------------------------------------------------------------------------------
-                                                             *buddy.register_tool()*
-                       `buddy.register_tool`({tool}, {opts})
-Register a tool programmatically
-Parameters ~
-{tool} `(table)` Tool definition with metadata and run function
-{opts} `(optional)` `(table)` Optional configuration to pass to the tool
 
+BUILT-IN TOOLS                               *buddy-buddy.nvim-built-in-tools*
 
-==============================================================================
+  Tool          Description
+  ------------- -----------------------------------------
+  buffer        Read, list, and get info on buffers
+  edit          Insert, replace, delete text in buffers
+  command       Execute Ex commands
+  navigation    Jump to files, lines, marks
+  search        Find and replace in current buffer
+  grep          Project-wide search using vimgrep
+  diagnostics   Get LSP diagnostics from Neovim
+  window        Manage splits and window layout
+  tab           Manage tabs
+  fold          Control code folding
+  visual        Create visual selections
+  macro         Record and play macros
+  register      Access Neovim registers
+  status        Get cursor, mode, marks, registers
+  init          Scaffold new user tools
 ------------------------------------------------------------------------------
-                                                             *buddy-config*
 
-Configuration options for buddy.
+CREATING TOOLS                               *buddy-buddy.nvim-creating-tools*
 
-------------------------------------------------------------------------------
-                                                             *buddy.get_tools_dir()*
-                              `buddy.get_tools_dir`()
-Get the effective tools directory
-Return ~
-`(string)`
-
-------------------------------------------------------------------------------
-                                                             *buddy.get_tool_opts()*
-                           `buddy.get_tool_opts`({name})
-Get configuration for a specific tool
-Parameters ~
-{name} `(string)` Tool name
-Return ~
-`(table)` Tool-specific options (empty table if not configured)
-
-------------------------------------------------------------------------------
-                                                           *buddy.is_tool_enabled()*
-                          `buddy.is_tool_enabled`({name})
-Check if a tool is enabled
-Parameters ~
-{name} `(string)` Tool name
-Return ~
-`(boolean)`
+Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. nvim-buddy
+discovers these automatically.
 
 
-==============================================================================
-------------------------------------------------------------------------------
-                                                           *buddy-executor*
+FORMAT 1: SIMPLE TOOLS LIST ~
 
-Tool execution with async support and cancellation.
+For plugins with one or more independent tools:
 
-------------------------------------------------------------------------------
-                                                                   *buddy.execute()*
-                   `buddy.execute`({tool_id}, {args}, {callback})
-Execute a Lua tool (sync or async)
-Parameters ~
-{tool_id} `(string)`
-{args} `(table)`
-{callback} `(function|nil)` Called with (err, result) for async tools
-Return ~
-`(table|nil)` result for sync, nil for async
-Return ~
-`(string|nil)` task_id for async tools (to cancel)
-
-------------------------------------------------------------------------------
-                                                                    *buddy.cancel()*
-                             `buddy.cancel`({task_id})
-Cancel a running async task
-Parameters ~
-{task_id} `(string)`
-Return ~
-`(boolean)` success
-
-------------------------------------------------------------------------------
-                                                              *buddy.list_running()*
-                               `buddy.list_running`()
-List running tasks (for debugging)
-Return ~
-`(table)`
+>lua
+    -- lua/my-plugin/buddy.lua
+    return {
+      tools = {
+        {
+          name = "greet",
+          description = "Say hello",
+          input_schema = {
+            type = "object",
+            properties = {
+              name = { type = "string", description = "Name to greet" },
+            },
+            required = { "name" },
+          },
+          run = function(args)
+            return { content = { { type = "text", text = "Hello, " .. args.name } } }
+          end,
+        },
+      }
+    }
+<
 
 
-==============================================================================
-------------------------------------------------------------------------------
-                                                            *buddy-testing*
+FORMAT 2: ACTION-BASED TOOL (RECOMMENDED FOR MULTI-ACTION TOOLS) ~
 
-Testing utilities for buddy tool authors.
-Provides helpers to test tools without full Neovim setup.
+For tools with multiple related actions, use the action-based pattern:
 
-------------------------------------------------------------------------------
-Class ~
-{ToolTestContext}
-Fields ~
-{tool} `(table)` The tool being tested
-{opts} `(table)` Tool options
-{results} `(table[])` Collected results from run calls
+>lua
+    -- lua/viz/buddy.lua
+    return {
+      name = "viz",
+      description = "Visualization tool for images, charts, and diagrams",
+      actions = {
+        image = require("viz.tools.image"),
+        chart = require("viz.tools.chart"),
+      },
+    }
+    
+    -- lua/viz/tools/image.lua
+    return {
+      description = "Display a local image",
+      input_schema = {
+        type = "object",
+        properties = {
+          path = { type = "string", description = "Path to image file" },
+        },
+        required = { "path" },
+      },
+      run = function(args)
+        -- implementation
+      end,
+    }
+<
 
-------------------------------------------------------------------------------
-                                                            *buddy.create_context()*
-                       `buddy.create_context`({tool}, {opts})
-Create a test context for a tool
-Provides isolated testing without registering the tool
-Parameters ~
-{tool} `(table)` Tool definition (must have metadata and run)
-{opts} `(table|nil)` Tool options to pass
-Return ~
-`(ToolTestContext)`
+The framework auto-generates: - Unified input_schema from all actions - Action
+enum with descriptions (e.g., `"image: Display a local image, chart: Generate
+charts"`) - Routing to the correct action handler - Per-action validation with
+helpful error messages
 
-------------------------------------------------------------------------------
-                                                                       *buddy.run()*
-                             `buddy.run`({ctx}, {args})
-Run a tool with given args and capture result
-Validates input against schema before running
-Parameters ~
-{ctx} `(ToolTestContext)`
-{args} `(table)` Input arguments
-Return ~
-`(boolean)` success
-Return ~
-`(any)` result_or_error
 
-------------------------------------------------------------------------------
-                                                              *buddy.assert_valid()*
-                        `buddy.assert_valid`({tool}, {args})
-Assert that args pass schema validation
-Parameters ~
-{tool} `(table)` Tool with metadata.input_schema
-{args} `(table)` Arguments to validate
-Return ~
-`(boolean)`
+TOOL FORMAT ~
 
-------------------------------------------------------------------------------
-                                                            *buddy.assert_invalid()*
-             `buddy.assert_invalid`({tool}, {args}, {expected_pattern})
-Assert that args fail schema validation
-Parameters ~
-{tool} `(table)` Tool with metadata.input_schema
-{args} `(table)` Arguments to validate
-{expected_pattern} `(string|nil)` Optional pattern to match in error
-Return ~
-`(boolean)`
+Individual tools (or actions) use this format:
 
-------------------------------------------------------------------------------
-                                                           *buddy.assert_succeeds()*
-                       `buddy.assert_succeeds`({ctx}, {args})
-Assert that running a tool succeeds
-Parameters ~
-{ctx} `(ToolTestContext)`
-{args} `(table)`
-Return ~
-`(any)` result
+>lua
+    return {
+      name = "tool_name",           -- Tool name (optional for actions)
+      description = "What it does", -- Required
+      input_schema = {              -- JSON Schema for parameters
+        type = "object",
+        properties = {
+          param1 = { type = "string", description = "A parameter" },
+          action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
+        },
+        required = { "action" },
+      },
+      run = function(args)          -- Handler function
+        return { success = true, result = "..." }
+      end,
+    }
+<
 
-------------------------------------------------------------------------------
-                                                              *buddy.assert_fails()*
-                `buddy.assert_fails`({ctx}, {args}, {expected_code})
-Assert that running a tool fails
-Parameters ~
-{ctx} `(ToolTestContext)`
-{args} `(table)`
-{expected_code} `(string|nil)` Expected error code
-Return ~
-`(any)` error
 
-------------------------------------------------------------------------------
-                                                  *buddy.assert_metadata_complete()*
-                      `buddy.assert_metadata_complete`({tool})
-Assert tool metadata is complete
-Parameters ~
-{tool} `(table)`
-Return ~
-`(boolean)`
+ADDING KEYMAPS, COMMANDS, AUTOCMDS ~
+
+Add a `setup` block and your tool becomes a proper Neovim plugin:
+
+>lua
+    local function do_thing(args)
+      vim.notify("Did the thing with: " .. (args.message or "nothing"))
+      return { success = true }
+    end
+    
+    return {
+      name = "my_tool",
+      description = "Does a thing",
+      input_schema = {
+        type = "object",
+        properties = {
+          message = { type = "string", description = "Message to show" },
+        },
+        required = {},
+      },
+      run = do_thing,
+    
+      setup = {
+        keymaps = {
+          { "n", "<leader>mt", function() do_thing({}) end, { desc = "My Tool" } },
+        },
+        commands = {
+          { "MyTool", function(opts) do_thing({ message = opts.args }) end, nargs = "?" },
+        },
+        autocmds = {
+          { "BufEnter", pattern = "*.md", callback = function() print("Markdown!") end },
+        },
+      },
+    }
+<
+
+Now your tool: - Works via MCP when AI calls `my_tool` - Works via `<leader>mt`
+keymap - Works via `:MyTool` command - Runs on `BufEnter` for markdown files
+
+Edit the file, keymaps and commands update automatically. No restart needed.
 
 ------------------------------------------------------------------------------
-                                                               *buddy.mock_buffer()*
-                            `buddy.mock_buffer`({lines})
-Create a mock Neovim buffer for testing buffer-related tools
-Parameters ~
-{lines} `(string[])` Initial buffer lines
-Return ~
-`(table)` mock_buffer
+
+CONFIGURATION                                 *buddy-buddy.nvim-configuration*
+
+>lua
+    local buddy = require("buddy")
+    
+    buddy.setup({
+      host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
+      port = 7234,         -- Server port (default: 7234)
+      auto_start = false,  -- Start on VimEnter (default: false)
+      log_level = "info",  -- Log level: "debug", "info", "warn", "error"
+      tools = {
+        disabled = {},     -- Disable specific tools: {"grep", "diagnostics", ...}
+      },
+      buffer = {
+        ignored_filetypes = {},  -- Hide filetypes from buffer listings
+      },
+    })
+<
+
+See docs/configuration.md <docs/configuration.md> for full configuration
+reference.
 
 ------------------------------------------------------------------------------
-                                                                 *buddy.mock_opts()*
-                           `buddy.mock_opts`({overrides})
-Create mock opts with common defaults
-Parameters ~
-{overrides} `(table|nil)`
-Return ~
-`(table)`
+
+API                                                     *buddy-buddy.nvim-api*
+
+>lua
+    local buddy = require("buddy")
+    
+    -- Start the MCP server
+    buddy.start()
+    
+    -- Stop the server
+    buddy.stop()
+    
+    -- Restart (stop + start)
+    buddy.restart()
+    
+    -- Check status
+    local status = buddy.status()
+    -- { running = true, port = 7234 }
+    
+    -- Register a tool programmatically
+    buddy.register_tool({
+      name = "my_tool",
+      description = "Does something",
+      input_schema = {
+        type = "object",
+        properties = {},
+        required = {},
+      },
+      run = function(args) return { success = true } end,
+    })
+<
+
+------------------------------------------------------------------------------
+
+REQUIREMENTS                                   *buddy-buddy.nvim-requirements*
+
+- **Neovim 0.10+**
+- **mini.nvim** (dependency)
+
+------------------------------------------------------------------------------
+
+TROUBLESHOOTING                             *buddy-buddy.nvim-troubleshooting*
 
 
- vim:tw=78:ts=8:noet:ft=help:norl:
+PORT ALREADY IN USE ~
+
+>
+    Failed to bind to 127.0.0.1:7234 - address already in use
+<
+
+Another instance is running, or another app is using port 7234. Either stop the
+other process or change the port:
+
+>lua
+    require("buddy").setup({ port = 7235 })
+<
+
+
+TOOL NOT LOADING ~
+
+Check `:messages` for errors. Common issues: - Syntax errors in your tool file
+- Missing `name`, `description`, or `run` fields - Invalid `input_schema`
+
+
+SSE CONNECTION FAILING ~
+
+Ensure: 1. nvim-buddy is running (`:lua
+print(require('nvim-buddy').status().running)`) 2. The URL matches your config
+(default: `http://127.0.0.1:7234/sse`) 3. No firewall blocking the connection
+
+------------------------------------------------------------------------------
+
+LICENSE                                             *buddy-buddy.nvim-license*
+
+MIT
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:
