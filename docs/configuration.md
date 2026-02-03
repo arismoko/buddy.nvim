@@ -9,9 +9,13 @@ buddy.setup({
   host = "127.0.0.1",   -- Bind address (default: "127.0.0.1" for security)
   port = 7234,          -- Server port (default: 7234)
   auto_start = false,   -- Start on VimEnter (default: false)
-  debug = false,        -- Enable debug logging (default: false)
-  tools_dir = nil,      -- Custom tools directory (default: nil)
-  tools = {},           -- Per-tool configuration (default: {})
+  log_level = "info",   -- Log level: "debug", "info", "warn", "error" (default: "info")
+  tools = {
+    disabled = {},      -- List of tool names to disable (e.g., {"grep", "diagnostics"})
+  },
+  buffer = {
+    ignored_filetypes = {},  -- Filetypes to hide from buffer list (e.g., {"neo-tree"})
+  },
 })
 ```
 
@@ -22,9 +26,38 @@ buddy.setup({
 | `host` | string | `"127.0.0.1"` | Server bind address |
 | `port` | number | `7234` | Server port |
 | `auto_start` | boolean | `false` | Auto-start server on VimEnter |
-| `debug` | boolean | `false` | Enable debug logging |
-| `tools_dir` | string | `nil` | Custom tools directory |
-| `tools` | table | `{}` | Per-tool configuration |
+| `log_level` | string | `"info"` | Log level: `"debug"`, `"info"`, `"warn"`, `"error"` |
+| `tools.disabled` | string[] | `{}` | List of built-in tool names to disable |
+| `buffer.ignored_filetypes` | string[] | `{}` | Filetypes to exclude from buffer listings |
+
+## Disabling Built-in Tools
+
+You can disable specific built-in tools by adding their names to `tools.disabled`:
+
+```lua
+require("buddy").setup({
+  tools = {
+    disabled = { "grep", "diagnostics", "macro" },
+  },
+})
+```
+
+Available built-in tools that can be disabled:
+- `buffer` - Read, list, and get info on buffers
+- `command` - Execute Ex commands
+- `diagnostics` - Get LSP diagnostics
+- `edit` - Insert, replace, delete text
+- `fold` - Control code folding
+- `grep` - Project-wide search
+- `init` - Scaffold new tools
+- `macro` - Record and play macros
+- `navigation` - Jump to files, lines, marks
+- `register` - Access Neovim registers
+- `search` - Find and replace in buffer
+- `status` - Get cursor, mode, marks, registers
+- `tab` - Manage tabs
+- `visual` - Create visual selections
+- `window` - Manage splits and layout
 
 ## Security
 

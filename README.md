@@ -270,8 +270,17 @@ buddy.setup({
   host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
   port = 7234,         -- Server port (default: 7234)
   auto_start = false,  -- Start on VimEnter (default: false)
+  log_level = "info",  -- Log level: "debug", "info", "warn", "error"
+  tools = {
+    disabled = {},     -- Disable specific tools: {"grep", "diagnostics", ...}
+  },
+  buffer = {
+    ignored_filetypes = {},  -- Hide filetypes from buffer listings
+  },
 })
 ```
+
+See [docs/configuration.md](docs/configuration.md) for full configuration reference.
 
 ---
 
