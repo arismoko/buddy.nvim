@@ -1,5 +1,5 @@
 #!/bin/bash
-# Integration test for nvim-buddy MCP server
+# Integration test for buddy.nvim MCP server
 # Run with: ./tests/integration_test.sh
 
 set -e
@@ -28,11 +28,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "=== nvim-buddy Integration Tests ==="
+echo "=== buddy.nvim Integration Tests ==="
 echo ""
 
-# Start Neovim with nvim-buddy
-echo "Starting nvim-buddy server..."
+# Start Neovim with buddy.nvim
+echo "Starting buddy.nvim server..."
 cd "$PROJECT_DIR"
 nvim --headless --clean -u NONE \
   -c "set rtp+=." \

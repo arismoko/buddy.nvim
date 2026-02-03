@@ -1,6 +1,6 @@
 # TODO: Plugin Architecture Refactor
 
-Goal: Tools are standalone Neovim plugins that optionally expose MCP tools via nvim-buddy.
+Goal: Tools are standalone Neovim plugins that optionally expose MCP tools via buddy.nvim.
 
 ## Architecture (following nvim-best-practices-plugin-template)
 
@@ -51,7 +51,7 @@ my-tool/
 - [x] Template includes comments guiding idiomatic buddy plugin creation
 
 ### 6. Create template folder [DONE]
-Location: `lua/nvim-buddy/tools/builtin/template/`
+Location: `lua/buddy/tools/builtin/template/`
 
 Structure:
 ```

@@ -1,4 +1,4 @@
-# nvim-buddy
+# buddy.nvim
 
 **Lua tools that work as keymaps AND as MCP tools.**
 
@@ -12,7 +12,7 @@
 
 I wanted AI tooling in Neovim without leaving for another editor. So I built this.
 
-nvim-buddy runs an [MCP server](https://modelcontextprotocol.io/) inside Neovim. Claude, OpenCode, or any MCP client can connect and actually control your editor: read buffers, edit files, run commands, navigate. Not just chat.
+buddy.nvim runs an [MCP server](https://modelcontextprotocol.io/) inside Neovim. Claude, OpenCode, or any MCP client can connect and actually control your editor: read buffers, edit files, run commands, navigate. Not just chat.
 
 You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular Neovim plugins (keymaps, commands, autocmds). Same code, both interfaces.
 
@@ -24,11 +24,11 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 
 ```lua
 {
-  "arismoko/nvim-buddy",
+  "arismoko/buddy.nvim",
   dependencies = { "echasnovski/mini.nvim" },
   lazy = false,
   config = function()
-    require("nvim-buddy").setup({
+    require("buddy").setup({
       auto_start = true,
       port = 7234,
     })
@@ -40,10 +40,10 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 
 ```lua
 use {
-  "arismoko/nvim-buddy",
+  "arismoko/buddy.nvim",
   requires = { "echasnovski/mini.nvim" },
   config = function()
-    require("nvim-buddy").setup({
+    require("buddy").setup({
       auto_start = true,
       port = 7234,
     })
@@ -56,7 +56,7 @@ use {
 Clone to your Neovim packages directory:
 
 ```bash
-git clone https://github.com/arismoko/nvim-buddy ~/.local/share/nvim/site/pack/plugins/start/nvim-buddy
+git clone https://github.com/arismoko/buddy.nvim ~/.local/share/nvim/site/pack/plugins/start/buddy.nvim
 ```
 
 ---
@@ -72,7 +72,7 @@ Add to `~/.config/opencode/opencode.jsonc`:
 ```jsonc
 {
   "mcp": {
-    "nvim-buddy": {
+    "buddy": {
       "type": "remote",
       "url": "http://127.0.0.1:7234/sse"
     }
@@ -90,7 +90,7 @@ Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "nvim-buddy": {
+    "buddy": {
       "url": "http://127.0.0.1:7234/sse"
     }
   }
@@ -101,7 +101,7 @@ Add to your Claude Desktop config:
 
 ## Security
 
-By default, nvim-buddy binds to `127.0.0.1` (localhost only). This means only local processes can connect.
+By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only local processes can connect.
 
 **To expose on LAN** (e.g., for remote AI clients):
 
@@ -264,7 +264,7 @@ Edit the file, keymaps and commands update automatically. No restart needed.
 ## Configuration
 
 ```lua
-local buddy = require("nvim-buddy")
+local buddy = require("buddy")
 
 buddy.setup({
   host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
@@ -278,7 +278,7 @@ buddy.setup({
 ## API
 
 ```lua
-local buddy = require("nvim-buddy")
+local buddy = require("buddy")
 
 -- Start the MCP server
 buddy.start()
@@ -323,7 +323,7 @@ Failed to bind to 127.0.0.1:7234 - address already in use
 Another instance is running, or another app is using port 7234. Either stop the other process or change the port:
 
 ```lua
-require("nvim-buddy").setup({ port = 7235 })
+require("buddy").setup({ port = 7235 })
 ```
 
 ### Tool not loading

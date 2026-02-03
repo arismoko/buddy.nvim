@@ -65,7 +65,7 @@ T['execute']['handles write command'] = function()
   vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'test content' })
 
   -- Use a temp file
-  local temp_file = '/tmp/nvim-buddy-test.txt'
+  local temp_file = '/tmp/buddy-test.txt'
   local result = tool.run({ cmd = 'write ' .. temp_file })
 
   MiniTest.expect.equality(result.success, true)
@@ -128,7 +128,7 @@ T['edit_commands']['opens a file'] = function()
   local tool = get_tool()
 
   -- Create a temp file to edit
-  local temp_file = '/tmp/nvim-buddy-edit-test.txt'
+  local temp_file = '/tmp/buddy-edit-test.txt'
   local f = io.open(temp_file, 'w')
   f:write('original content')
   f:close()

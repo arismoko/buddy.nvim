@@ -11,7 +11,7 @@
 
     ```lua
     {
-      "arismoko/nvim-buddy",
+      "arismoko/buddy.nvim",
       dependencies = { "echasnovski/mini.nvim" },
       lazy = false,
       config = function()
@@ -27,7 +27,7 @@
 
     ```lua
     use {
-      "arismoko/nvim-buddy",
+      "arismoko/buddy.nvim",
       requires = { "echasnovski/mini.nvim" },
       config = function()
         require("buddy").setup({
@@ -43,8 +43,8 @@
     Clone to your Neovim packages directory:
 
     ```bash
-    git clone https://github.com/arismoko/nvim-buddy \
-      ~/.local/share/nvim/site/pack/plugins/start/nvim-buddy
+    git clone https://github.com/arismoko/buddy.nvim \
+      ~/.local/share/nvim/site/pack/plugins/start/buddy.nvim
     ```
 
 ## Connecting MCP Clients
@@ -58,7 +58,7 @@ Add to `~/.config/opencode/opencode.jsonc`:
 ```jsonc
 {
   "mcp": {
-    "nvim-buddy": {
+    "buddy": {
       "type": "remote",
       "url": "http://127.0.0.1:7234/sse"
     }
@@ -79,7 +79,7 @@ Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "nvim-buddy": {
+    "buddy": {
       "url": "http://127.0.0.1:7234/sse"
     }
   }

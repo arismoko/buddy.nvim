@@ -1,10 +1,10 @@
-# AGENTS.md - nvim-buddy
+# AGENTS.md - buddy.nvim
 
 Guidelines for AI agents working in this Neovim plugin codebase.
 
 ## Project Overview
 
-nvim-buddy is an MCP (Model Context Protocol) server for Neovim, written in Lua. It provides a bridge between AI agents and Neovim via HTTP/SSE endpoints.
+buddy.nvim is an MCP (Model Context Protocol) server for Neovim, written in Lua. It provides a bridge between AI agents and Neovim via HTTP/SSE endpoints.
 
 ## Build & Test Commands
 
@@ -20,7 +20,7 @@ make test-integration                  # HTTP/SSE endpoint tests (uses curl)
 make test-all                          # Unit + integration tests
 
 # Health check (inside Neovim)
-:checkhealth nvim-buddy
+:checkhealth buddy
 ```
 
 ## Code Style Guidelines
@@ -45,7 +45,7 @@ make test-all                          # Unit + integration tests
 ```lua
 local M = {}
 
-local dep = require("nvim-buddy.dep")  -- Core deps at top
+local dep = require("buddy.dep")  -- Core deps at top
 
 local function _private_helper()       -- Private: underscore prefix
 end
@@ -54,7 +54,7 @@ end
 ---@return table|nil result
 ---@return string|nil error
 function M.public_api(arg)             -- Public: on M table
-  local lazy = require("nvim-buddy.lazy")  -- Lazy load optional deps
+  local lazy = require("buddy.lazy")  -- Lazy load optional deps
   return result, nil
 end
 
@@ -109,7 +109,7 @@ return {
 ## Directory Structure
 
 ```
-lua/nvim-buddy/
+lua/buddy/
   init.lua          # Entry point, main API
   config.lua        # Configuration management
   bridge.lua        # Lua-to-MCP bridging
@@ -137,14 +137,14 @@ local T = MiniTest.new_set()
 
 T['hooks'] = {
   pre_case = function()
-    package.loaded['nvim-buddy.module'] = nil  -- Fresh state
+    package.loaded['buddy.module'] = nil  -- Fresh state
   end
 }
 
 T['feature()'] = MiniTest.new_set()
 
 T['feature()']['does something'] = function()
-  local mod = require('nvim-buddy.module')
+  local mod = require('buddy.module')
   MiniTest.expect.equality(mod.fn(), expected)
 end
 
@@ -174,7 +174,7 @@ if not ok then return nil, "Invalid JSON" end
 
 ### Logging
 ```lua
-local log = require("nvim-buddy.log")
+local log = require("buddy.log")
 log.debug("Processing %s", request_id)
 log.error("Failed: %s", err)
 ```

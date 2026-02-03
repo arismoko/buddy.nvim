@@ -104,7 +104,7 @@ function M._handle_message(http_server, client, request, body)
     return
   end
 
-  local mcp_ok, mcp = pcall(require, "nvim-buddy.mcp")
+  local mcp_ok, mcp = pcall(require, "buddy.mcp")
   if not mcp_ok or not mcp.handle_request then
     http_server:send_response(client, 500, {["Content-Type"] = "application/json"}, vim.json.encode({
       error = {
