@@ -155,8 +155,13 @@ return {
     {
       name = "greet",
       description = "Say hello",
-      args = { name = { type = "string", description = "Name to greet" } },
-      required = { "name" },
+      input_schema = {
+        type = "object",
+        properties = {
+          name = { type = "string", description = "Name to greet" },
+        },
+        required = { "name" },
+      },
       run = function(args)
         return { content = { { type = "text", text = "Hello, " .. args.name } } }
       end,
@@ -183,10 +188,13 @@ return {
 -- lua/viz/tools/image.lua
 return {
   description = "Display a local image",
-  args = {
-    path = { type = "string", description = "Path to image file" },
+  input_schema = {
+    type = "object",
+    properties = {
+      path = { type = "string", description = "Path to image file" },
+    },
+    required = { "path" },
   },
-  required = { "path" },
   run = function(args)
     -- implementation
   end,
@@ -194,7 +202,7 @@ return {
 ```
 
 The framework auto-generates:
-- Unified args schema from all actions
+- Unified input_schema from all actions
 - Action enum with descriptions (e.g., `"image: Display a local image, chart: Generate charts"`)
 - Routing to the correct action handler
 - Per-action validation with helpful error messages
@@ -207,11 +215,14 @@ Individual tools (or actions) use this format:
 return {
   name = "tool_name",           -- Tool name (optional for actions)
   description = "What it does", -- Required
-  args = {                      -- Parameter definitions
-    param1 = { type = "string", description = "A parameter" },
-    action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
+  input_schema = {              -- JSON Schema for parameters
+    type = "object",
+    properties = {
+      param1 = { type = "string", description = "A parameter" },
+      action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
+    },
+    required = { "action" },
   },
-  required = { "action" },      -- Required parameters
   run = function(args)          -- Handler function
     return { success = true, result = "..." }
   end,
@@ -231,10 +242,13 @@ end
 return {
   name = "my_tool",
   description = "Does a thing",
-  args = {
-    message = { type = "string", description = "Message to show" },
+  input_schema = {
+    type = "object",
+    properties = {
+      message = { type = "string", description = "Message to show" },
+    },
+    required = {},
   },
-  required = {},
   run = do_thing,
 
   setup = {
@@ -306,8 +320,11 @@ local status = buddy.status()
 buddy.register_tool({
   name = "my_tool",
   description = "Does something",
-  args = {},
-  required = {},
+  input_schema = {
+    type = "object",
+    properties = {},
+    required = {},
+  },
   run = function(args) return { success = true } end,
 })
 ```
