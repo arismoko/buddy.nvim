@@ -357,7 +357,7 @@ require("buddy").setup({ port = 7235 })
 Check `:messages` for errors. Common issues:
 - Syntax errors in your tool file
 - Missing `name`, `description`, or `run` fields
-- Invalid `args` schema
+- Invalid `input_schema`
 
 ### SSE connection failing
 
