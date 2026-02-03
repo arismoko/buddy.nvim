@@ -442,4 +442,42 @@ function M.find_pikchr_bin()
   return nil
 end
 
+--------------------------------------------------------------------------------
+-- Configurable Image Opening
+--------------------------------------------------------------------------------
+
+--- Open an image file using the configured viewer
+---@param filepath string Path to the image file
+---@return boolean success
+function M.open_image(filepath)
+  local config = require("buddy_viz.configuration")
+  local viewer = config.get("viewer")
+
+  if viewer == "none" then
+    return true
+  elseif viewer == "builtin" then
+    return M.open_viewer(filepath) or false
+  elseif viewer == "command" then
+    local cmd = config.get("viewer_command")
+    if not cmd then
+      vim.notify("[buddy_viz] viewer_command not configured", vim.log.levels.ERROR)
+      return false
+    end
+    local full_cmd = cmd:gsub("%%s", vim.fn.shellescape(filepath))
+    vim.fn.jobstart(full_cmd, { detach = true })
+    return true
+  else -- "external" (default)
+    local open_cmd
+    if vim.fn.has("mac") == 1 then
+      open_cmd = "open"
+    elseif vim.fn.has("wsl") == 1 then
+      open_cmd = "wslview"
+    else
+      open_cmd = "xdg-open"
+    end
+    vim.fn.jobstart({ open_cmd, filepath }, { detach = true })
+    return true
+  end
+end
+
 return M

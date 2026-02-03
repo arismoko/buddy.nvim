@@ -10,27 +10,14 @@ function M.display(args)
     return { error = "File not found: " .. path }
   end
 
-  -- Check viz config for viewer preference
-  local ok, viz_config = pcall(require, "buddy_viz.configuration")
-  local viewer = ok and viz_config.get("viewer") or "builtin"
+  vim.schedule(function()
+    helpers.open_image(path)
+  end)
 
-  if viewer == "builtin" then
-    vim.schedule(function()
-      helpers.open_viewer(path)
-    end)
-    return {
-      success = true,
-      message = "Opening image viewer for: " .. path .. "\n\nControls:\n  -/= : zoom out/in\n  hjkl/arrows : pan\n  r : reset\n  q/Esc : close",
-    }
-  else
-    -- Use external viewer (xdg-open or custom command) - run async to avoid blocking
-    local cmd = viewer == "xdg-open" and "xdg-open" or viewer
-    vim.fn.jobstart({ cmd, path }, { detach = true })
-    return {
-      success = true,
-      message = "Opening with " .. cmd .. ": " .. path,
-    }
-  end
+  return {
+    success = true,
+    message = "Opening image: " .. path,
+  }
 end
 
 return M

@@ -3,7 +3,10 @@
 local M = {}
 
 M.options = {
-  viewer = "builtin",
+  -- Viewer options: "builtin" (Kitty graphics), "external" (xdg-open), "command" (custom), "none"
+  viewer = "external",
+  -- Custom command for viewer = "command" mode (use %s for filepath)
+  viewer_command = nil,
 }
 
 function M.setup(opts)

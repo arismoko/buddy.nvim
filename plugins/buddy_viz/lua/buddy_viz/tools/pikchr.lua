@@ -59,7 +59,7 @@ function M.render(args)
 
   -- Open in viewer
   vim.schedule(function()
-    helpers.open_viewer(png_file)
+    helpers.open_image(png_file)
   end)
   return { success = true, message = "Rendered: " .. png_file }
 end

@@ -27,11 +27,13 @@ M._server = nil
 ---@field host string Server host (default: "127.0.0.1")
 ---@field port number Server port (default: 7234)
 ---@field auto_start boolean Start server automatically (default: false)
+---@field watch boolean Enable hot reload file watching (default: true)
 ---@field debug boolean Enable debug logging (default: false)
 ---@field tools table Tool configuration
 ---@field tools.disabled string[] List of tool names to exclude (e.g., {"buffer", "diagnostics"})
 ---
 ---@usage `require("buddy").setup({ auto_start = true })`
+---@usage `require("buddy").setup({ watch = false })` -- disable hot reload
 ---@usage `require("buddy").setup({ tools = { disabled = { "buffer", "diagnostics" } } })`
 function M.setup(opts)
   local config = require("buddy.config")
@@ -74,11 +76,21 @@ function M.start()
   local cfg = config.get()
 
   M._server = server.start(cfg.host, cfg.port)
+
+  -- Start hot reload watching if enabled
+  if cfg.watch then
+    local hotreload = require("buddy.tools.hotreload")
+    hotreload.start_watching()
+  end
 end
 
 --- Stop the MCP server
 ---@return boolean success
 function M.stop()
+  -- Stop hot reload watching
+  local hotreload = require("buddy.tools.hotreload")
+  hotreload.stop_watching()
+
   if M._server then
     M._server:stop()
     M._server = nil

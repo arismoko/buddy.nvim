@@ -1,0 +1,24 @@
+{
+  "name": "buddy-mcp-proxy",
+  "version": "0.1.0",
+  "description": "MCP proxy server for buddy.nvim sessions",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "buddy-mcp-proxy": "dist/index.js"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --banner:js='#!/usr/bin/env node' --packages=external",
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -67,11 +67,11 @@ function M.open(args)
 
   -- Display using viewer
   vim.schedule(function()
-    helpers.open_viewer(path)
+    helpers.open_image(path)
   end)
   return {
     success = true,
-    message = "Opening image: " .. path .. "\n\nControls:\n  -/= : zoom out/in\n  hjkl/arrows : pan\n  r : reset\n  q/Esc : close",
+    message = "Opening image: " .. path,
   }
 end
 
