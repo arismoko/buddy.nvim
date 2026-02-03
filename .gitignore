@@ -14,3 +14,5 @@ TODO.md
 
 # MkDocs build output
 site/
+codemap.md
+CODEMAP_SUMMARY.md
