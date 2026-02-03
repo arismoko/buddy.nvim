@@ -46,3 +46,14 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
   desc = "Auto-start buddy if configured",
 })
+
+-- Clean up on quit
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    local buddy = require("buddy")
+    if buddy._server then
+      buddy.stop()
+    end
+  end,
+  desc = "Stop buddy and unregister session on quit",
+})
