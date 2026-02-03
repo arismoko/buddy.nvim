@@ -50,43 +50,49 @@ return {
 }
 ```
 
-### Format 2: Action-Based Tool (Recommended)
+### Format 2: Action-Based Tool
 
-For tools with multiple related actions, use the action-based pattern:
+For tools with multiple related actions, define a single `input_schema` with an `action` enum and route manually in your `run` function:
 
 ```lua
--- lua/viz/buddy.lua
+-- lua/buddy_viz/buddy.lua
 return {
   name = "viz",
   description = "Visualization tool for images, charts, and diagrams",
-  actions = {
-    image = require("viz.tools.image"),
-    chart = require("viz.tools.chart"),
-  },
-}
-
--- lua/viz/tools/image.lua
-return {
-  description = "Display a local image",
   input_schema = {
     type = "object",
     properties = {
-      path = { type = "string", description = "Path to image file" },
+      action = {
+        type = "string",
+        enum = { "chart", "image", "open", "pikchr" },
+        description = "The visualization action to perform",
+      },
+      -- Chart action args
+      type = { type = "string", enum = { "bar", "line", "pie" }, description = "Chart type (for action=chart)" },
+      title = { type = "string", description = "Chart title (for action=chart)" },
+      -- Image action args
+      path = { type = "string", description = "Path to image file (for action=image)" },
+      -- Other action-specific args...
     },
-    required = { "path" },
+    required = { "action" },
   },
   run = function(args)
-    -- implementation
+    local action = args.action
+
+    if action == "chart" then
+      -- handle chart
+      return { content = { { type = "text", text = "Chart rendered" } } }
+    elseif action == "image" then
+      -- handle image
+      return { content = { { type = "text", text = "Image displayed" } } }
+    else
+      return { isError = true, content = { { type = "text", text = "Unknown action: " .. action } } }
+    end
   end,
 }
 ```
 
-The framework auto-generates:
-
-- Unified input_schema from all actions
-- Action enum with descriptions (e.g., `"image: Display a local image, chart: Generate charts"`)
-- Routing to the correct action handler
-- Per-action validation with helpful error messages
+This pattern keeps all action logic in one file with explicit routing via if/elseif
 
 ## Parameter Types
 
