@@ -7,5 +7,10 @@ bun.lock
 
 # Auto-generated linter config
 .markdownlint.yaml
-.references/
-deps/
+
+# Local development
+TODO.md
+.luarc.json
+
+# MkDocs build output
+site/
