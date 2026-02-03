@@ -52,6 +52,29 @@ function M._handle_sse(http_server, client, _request)
 
   http_server.sse_connections[session_id] = sse_conn
 
+  -- Wire up notify callback on first SSE connection to broadcast to all sessions
+  local methods = require("buddy.mcp.methods")
+  if not methods._notify_callback then
+    methods.set_notify_callback(function(notification)
+      local message = {
+        jsonrpc = "2.0",
+        method = notification.method,
+      }
+      if notification.params then
+        message.params = notification.params
+      end
+
+      -- Broadcast to all active SSE connections
+      for sid, conn in pairs(http_server.sse_connections) do
+        local sent = conn:send_data(message)
+        if not sent then
+          log.debug(string.format("Failed to broadcast notification to session %s", sid))
+        end
+      end
+    end)
+    log.debug("Hot reload notifications wired up")
+  end
+
   log.debug(string.format("SSE session created: %s", session_id))
 end
 
