@@ -16,41 +16,101 @@ function HTTPServer.new(host, port)
   return self
 end
 
+-- Try to bind AND listen on a specific port
+-- Returns true on success, or false + error message on failure
+function HTTPServer:_try_port(host, port, listen_callback)
+  local server = uv.new_tcp()
+  if not server then
+    return false, "Failed to create TCP server"
+  end
+
+  local bind_ok, bind_err = server:bind(host, port)
+  if not bind_ok then
+    server:close()
+    return false, bind_err
+  end
+
+  local listen_ok, listen_err = server:listen(128, listen_callback)
+  if not listen_ok then
+    server:close()
+    return false, listen_err
+  end
+
+  -- Success - store the server
+  self.server = server
+  return true
+end
+
+-- Check if error is a port-in-use error
+local function is_addr_in_use(err)
+  return err and (err:match("EADDRINUSE") or err:match("address already in use"))
+end
+
 -- Start the HTTP server with a router
+-- Returns the actual port bound (may differ from self.port if fallback was used)
 function HTTPServer:start(router)
   self.router = router
 
-  -- Create TCP server
-  self.server = uv.new_tcp()
-  if not self.server then
-    error("Failed to create TCP server")
-  end
-
-  -- Bind to address and port
   local host = self.host or "127.0.0.1"
-  local bind_ok, err = self.server:bind(host, self.port)
-  if not bind_ok then
-    self.server:close()
-    error(string.format("Failed to bind to %s:%d - %s", host, self.port, err))
-  end
+  local preferred_port = self.port
+  local max_retries = 10
 
-  -- Start listening - callback is invoked for each new connection
-  local listen_ok, listen_err = self.server:listen(128, function(err2)
-    if err2 then
+  -- Create the listen callback
+  local listen_callback = function(err)
+    if err then
       vim.schedule(function()
-        vim.notify(string.format("[buddy] Listen error: %s", err2), vim.log.levels.ERROR)
+        vim.notify(string.format("[buddy] Listen error: %s", err), vim.log.levels.ERROR)
       end)
       return
     end
     self:_accept()
-  end)
-  if not listen_ok then
-    self.server:close()
-    error(string.format("Failed to listen on port %d - %s", self.port, listen_err))
   end
 
-  self.running = true
-  print(string.format("HTTP server listening on http://%s:%d", host, self.port))
+  -- Try preferred port first
+  local ok, err = self:_try_port(host, preferred_port, listen_callback)
+
+  if ok then
+    self.port = preferred_port
+    self.running = true
+    print(string.format("HTTP server listening on http://%s:%d", host, preferred_port))
+    return preferred_port
+  end
+
+  -- Preferred port failed - try fallbacks if it's an address-in-use error
+  if not is_addr_in_use(err) then
+    error(string.format("Failed to start server on %s:%d - %s", host, preferred_port, err or "unknown error"))
+  end
+
+  vim.schedule(function()
+    vim.notify(
+      string.format("[buddy] Port %d in use, finding available port...", preferred_port),
+      vim.log.levels.INFO
+    )
+  end)
+
+  -- Try alternative ports
+  for i = 1, max_retries do
+    local try_port = preferred_port + i
+    if try_port > 7999 then
+      try_port = 7235 + math.random(0, 764)
+    end
+
+    ok, err = self:_try_port(host, try_port, listen_callback)
+    if ok then
+      self.port = try_port
+      self.running = true
+      vim.schedule(function()
+        vim.notify(
+          string.format("[buddy] Server started on http://%s:%d (port %d was busy)", host, try_port, preferred_port),
+          vim.log.levels.INFO
+        )
+      end)
+      print(string.format("HTTP server listening on http://%s:%d", host, try_port))
+      return try_port
+    end
+  end
+
+  error(string.format("Failed to find available port after %d attempts (last error: %s)", max_retries, err or "unknown"))
 end
 
 -- Accept a new connection (called by listen callback for each connection)

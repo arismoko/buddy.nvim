@@ -20,6 +20,7 @@
 local M = {}
 
 M._server = nil
+M._actual_port = nil
 
 --- Setup buddy with the given options
 ---
@@ -75,13 +76,15 @@ function M.start()
   local config = require("buddy.config")
   local cfg = config.get()
 
-  M._server = server.start(cfg.host, cfg.port)
+  local actual_port = server.start(cfg.host, cfg.port)
+  M._server = server.get()
+  M._actual_port = actual_port
 
-  -- Register this session for multi-session support
+  -- Register this session for multi-session support (use actual bound port)
   local sessions = require("buddy.sessions")
   sessions.cleanup_stale()  -- Clean up dead sessions first
   sessions.register({
-    port = cfg.port,
+    port = actual_port,
     host = cfg.host,
   })
 
@@ -106,6 +109,7 @@ function M.stop()
   if M._server then
     M._server:stop()
     M._server = nil
+    M._actual_port = nil
   end
 
   require("buddy.tools").clear()
@@ -120,8 +124,7 @@ end
 ---@return table status { running: boolean, port: number|nil }
 function M.status()
   if M._server then
-    local config = require("buddy.config")
-    return { running = true, port = config.get().port }
+    return { running = true, port = M._actual_port }
   end
   return { running = false }
 end

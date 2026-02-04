@@ -20,6 +20,7 @@ end
 --- Scans: lua/*/buddy.lua - registers tools with registry
 function M.discover()
   log.debug("Discovering runtimepath tools")
+  local hotreload = require("buddy.tools.hotreload")
   local count = 0
   
   -- Pattern: buddy.lua files
@@ -49,12 +50,16 @@ function M.discover()
           local valid, err = validate_tool(tool, path)
           if valid then
             tool.runtime = "runtimepath"
+            tool.source = prefix
             registry.register(tool)
             count = count + 1
           else
             log.warn(err)
           end
         end
+
+        -- Track plugin for hot reload
+        hotreload.track_plugin(prefix, path)
       elseif not ok then
         log.warn("Failed to load buddy pack %s: %s", module, tostring(pack))
       end
