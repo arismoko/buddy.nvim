@@ -43,12 +43,7 @@ LAZY.NVIM ~
 >lua
     {
       "arismoko/buddy.nvim",
-      dependencies = {
-        "echasnovski/mini.nvim",
-        -- Optional: Companion plugins
-        -- { "arismoko/buddy_core.nvim" }, -- Core tools (buddy_manager, dotfyle, lazy)
-        -- { "arismoko/buddy_viz.nvim" },  -- Visualization tools (charts, images)
-      },
+      dependencies = { "echasnovski/mini.nvim" },
       lazy = false,
       config = function()
         require("buddy").setup({
@@ -166,12 +161,6 @@ BUILT-IN TOOLS                               *buddy-buddy.nvim-built-in-tools*
   register      Access Neovim registers
   status        Get cursor, mode, marks, registers
   init          Scaffold new user tools
-
-  Companion Tools (require separate plugins):
-  buddy_manager View all buddy tools and navigate to source
-  dotfyle_search Search for Neovim plugins on Dotfyle
-  lazy_manager  Browse and edit lazy.nvim plugin config files
-  viz           Visualization tool for images, charts, and diagrams
 ------------------------------------------------------------------------------
 
 CREATING TOOLS                               *buddy-buddy.nvim-creating-tools*
