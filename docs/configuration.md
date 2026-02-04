@@ -59,6 +59,8 @@ Available built-in tools that can be disabled:
 - `visual` - Create visual selections
 - `window` - Manage splits and layout
 
+Note: Tools from companion plugins (like `buddy_manager`, `viz`, `dotfyle_search`) are managed by installing/uninstalling their respective plugins and are not controlled by `tools.disabled`.
+
 ## Security
 
 By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only local processes can connect.

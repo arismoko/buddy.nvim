@@ -3,6 +3,8 @@
 
 -- Add plugin to runtimepath
 vim.opt.rtp:prepend(".")
+vim.opt.rtp:append("plugins/buddy_core")
+vim.opt.rtp:append("plugins/buddy_viz")
 
 -- Load the registry and builtins
 local registry = require("buddy.tools")
@@ -41,10 +43,18 @@ end
 -- Generate docs for a single tool
 local function generate_tool_section(tool)
   local lines = {}
-  local tag = string.format("*buddy.tools.%s*", tool.name)
+  -- Use plugin-specific tag prefix if available, else buddy.tools
+  local prefix = "buddy.tools"
+  if tool.source == "buddy_core" then
+    prefix = "buddy_core.tools"
+  elseif tool.source == "buddy_viz" then
+    prefix = "buddy_viz.tools"
+  end
+  
+  local tag = string.format("*%s.%s*", prefix, tool.name)
 
   -- Section header with right-aligned tag
-  local header = string.format("buddy.tools.%s", tool.name)
+  local header = string.format("%s.%s", prefix, tool.name)
   local padding = WIDTH - #header - #tag
   table.insert(lines, header .. string.rep(" ", math.max(1, padding)) .. tag)
   table.insert(lines, "")
@@ -126,46 +136,110 @@ local function generate_tool_section(tool)
   return lines
 end
 
--- Build the full document
-local doc_lines = {}
+-- Generate doc file content
+local function generate_doc_file(title, filename, tool_list, intro_text)
+  local doc_lines = {}
 
--- Header
-table.insert(doc_lines, "*buddy-tools.txt*  Tool reference for buddy")
-table.insert(doc_lines, "")
-
--- Intro
-table.insert(doc_lines, "This document describes all available buddy tools.")
-table.insert(doc_lines, "Each tool can be called by AI assistants through MCP.")
-table.insert(doc_lines, "")
-table.insert(doc_lines, "For main documentation, see |buddy|.")
-table.insert(doc_lines, "")
-
--- Table of contents
-table.insert(doc_lines, "TOOLS                                              *buddy-tools*")
-table.insert(doc_lines, "")
-for _, tool in ipairs(tools) do
-  local link = string.format("|buddy.tools.%s|", tool.name)
-  table.insert(doc_lines, "  " .. link)
-end
-table.insert(doc_lines, "")
-table.insert(doc_lines, string.rep("=", WIDTH))
-table.insert(doc_lines, "")
-
--- Tool sections
-for _, tool in ipairs(tools) do
-  local section = generate_tool_section(tool)
-  for _, line in ipairs(section) do
-    table.insert(doc_lines, line)
-  end
-  table.insert(doc_lines, string.rep("-", WIDTH))
+  -- Header
+  table.insert(doc_lines, string.format("*%s*  %s", filename, title))
   table.insert(doc_lines, "")
+  
+  -- Intro
+  if intro_text then
+    for _, line in ipairs(intro_text) do
+      table.insert(doc_lines, line)
+    end
+    table.insert(doc_lines, "")
+  end
+
+  -- Table of contents
+  table.insert(doc_lines, string.format("TOOLS%s*%s*", string.rep(" ", WIDTH - 5 - #filename:gsub("%.txt", "")), filename:gsub("%.txt", "")))
+  table.insert(doc_lines, "")
+  for _, tool in ipairs(tool_list) do
+    local prefix = "buddy.tools"
+    if tool.source == "buddy_core" then prefix = "buddy_core.tools" end
+    if tool.source == "buddy_viz" then prefix = "buddy_viz.tools" end
+    
+    local link = string.format("|%s.%s|", prefix, tool.name)
+    table.insert(doc_lines, "  " .. link)
+  end
+  table.insert(doc_lines, "")
+  table.insert(doc_lines, string.rep("=", WIDTH))
+  table.insert(doc_lines, "")
+
+  -- Tool sections
+  for _, tool in ipairs(tool_list) do
+    local section = generate_tool_section(tool)
+    for _, line in ipairs(section) do
+      table.insert(doc_lines, line)
+    end
+    table.insert(doc_lines, string.rep("-", WIDTH))
+    table.insert(doc_lines, "")
+  end
+
+  -- Footer
+  table.insert(doc_lines, " vim:tw=78:ts=8:ft=help:norl:")
+  
+  return doc_lines
 end
 
--- Footer
-table.insert(doc_lines, " vim:tw=78:ts=8:ft=help:norl:")
+-- Split tools by source
+local core_tools = {}
+local buddy_core_tools = {}
+local buddy_viz_tools = {}
 
--- Write to file
-local doc_path = "doc/buddy-tools.txt"
-vim.fn.writefile(doc_lines, doc_path)
+for _, tool in ipairs(tools) do
+  if tool.source == "buddy_core" then
+    table.insert(buddy_core_tools, tool)
+  elseif tool.source == "buddy_viz" then
+    table.insert(buddy_viz_tools, tool)
+  else
+    table.insert(core_tools, tool)
+  end
+end
 
-print(string.format("Generated %s with %d tools", doc_path, #tools))
+-- Generate buddy-tools.txt (Core)
+local core_doc = generate_doc_file(
+  "Tool reference for buddy",
+  "buddy-tools.txt",
+  core_tools,
+  {
+    "This document describes the built-in buddy tools.",
+    "Each tool can be called by AI assistants through MCP.",
+    "",
+    "For main documentation, see |buddy|."
+  }
+)
+vim.fn.writefile(core_doc, "doc/buddy-tools.txt")
+print(string.format("Generated doc/buddy-tools.txt with %d tools", #core_tools))
+
+-- Generate buddy_core.txt
+if #buddy_core_tools > 0 then
+  local doc = generate_doc_file(
+    "Core companion tools for buddy.nvim",
+    "buddy_core.txt",
+    buddy_core_tools,
+    {
+      "This document describes tools provided by the buddy_core plugin.",
+      "These tools require the buddy_core plugin to be installed."
+    }
+  )
+  vim.fn.writefile(doc, "plugins/buddy_core/doc/buddy_core.txt")
+  print(string.format("Generated plugins/buddy_core/doc/buddy_core.txt with %d tools", #buddy_core_tools))
+end
+
+-- Generate buddy_viz.txt
+if #buddy_viz_tools > 0 then
+  local doc = generate_doc_file(
+    "Visualization tools for buddy.nvim",
+    "buddy_viz.txt",
+    buddy_viz_tools,
+    {
+      "This document describes tools provided by the buddy_viz plugin.",
+      "These tools require the buddy_viz plugin to be installed."
+    }
+  )
+  vim.fn.writefile(doc, "plugins/buddy_viz/doc/buddy_viz.txt")
+  print(string.format("Generated plugins/buddy_viz/doc/buddy_viz.txt with %d tools", #buddy_viz_tools))
+end
+

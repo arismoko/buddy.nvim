@@ -24,6 +24,19 @@ buddy.nvim comes with a comprehensive set of built-in tools that AI assistants c
 
 ---
 
+## Companion Tools
+
+These tools are provided by separate plugins (`buddy_core`, `buddy_viz`).
+
+| Tool | Description |
+|------|-------------|
+| [viz](#viz) | Visualization tool for images, charts, and diagrams |
+| [buddy_manager](#buddy_manager) | View all buddy tools and navigate to source |
+| [dotfyle_search](#dotfyle_search) | Search for Neovim plugins on Dotfyle |
+| [lazy_manager](#lazy_manager) | Browse and edit lazy.nvim plugin config files |
+
+---
+
 ## buffer
 
 Read and list Neovim buffers.
@@ -34,6 +47,8 @@ Read and list Neovim buffers.
 |-----------|------|----------|-------------|
 | `action` | `list` \| `get_content` \| `get_info` | Yes | `list`: all loaded buffers, `get_content`: buffer text, `get_info`: buffer metadata |
 | `bufnr` | number | No | Buffer number. Defaults to current buffer if omitted |
+| `offset` | number | No | Line number to start reading from (0-based). For `get_content` |
+| `limit` | number | No | Number of lines to read (defaults to 2000). For `get_content` |
 
 ---
 
@@ -45,10 +60,13 @@ Edit buffer content.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `action` | `insert` \| `replace` \| `delete` \| `replace_all` | Yes | Operation to perform |
-| `line` | number | Yes | Line number (1-indexed) |
+| `action` | `insert` \| `replace` \| `delete` \| `replace_all` \| `replace_match` | Yes | Operation to perform |
+| `line` | number | No | Line number (1-indexed) for insert/replace/delete |
 | `end_line` | number | No | End line for replace/delete range |
 | `content` | string | No | Content to insert/replace |
+| `oldString` | string | No | Text to find and replace (for `replace_match`) |
+| `newString` | string | No | Replacement text (for `replace_match`) |
+| `replaceAll` | boolean | No | Replace all occurrences (for `replace_match`, default: false) |
 
 ### Actions
 
@@ -56,6 +74,7 @@ Edit buffer content.
 - **replace**: Replace line range
 - **delete**: Delete line range
 - **replace_all**: Replace entire buffer content
+- **replace_match**: Find and replace text (recommended for precise edits)
 
 ---
 
@@ -126,6 +145,7 @@ Project-wide search using vimgrep with quickfix list.
 |-----------|------|----------|-------------|
 | `pattern` | string | Yes | Search pattern to grep for |
 | `file_pattern` | string | No | File pattern (default: `**/*`) |
+| `path` | string | No | Directory to search in (default: current working directory) |
 
 ---
 
@@ -286,4 +306,57 @@ Scaffold a new buddy Lua tool with the correct structure.
 |-----------|------|----------|-------------|
 | `name` | string | Yes | Tool name (snake_case, e.g. `my_tool`) |
 | `description` | string | No | Tool description |
-| `template` | `basic` \| `async` \| `plugin` \| `full` | No | Template type to use |
+| `path` | string | No | Custom path for tool (default: `stdpath('data')/buddy-tools/`) |
+
+---
+
+## viz
+
+Visualization tool for images, charts, and diagrams.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `chart` \| `image` \| `open` \| `pikchr` | Yes | The visualization action to perform |
+| `type` | `bar` \| `line` \| `pie` | No | Chart type (for action=chart) |
+| `data` | array | No | Data points for chart (array of objects with label and values) |
+| `title` | string | No | Chart title (for action=chart) |
+| `series` | array | No | Series names matching values array (for action=chart) |
+| `path` | string | No | Absolute path to image file (for action=image) |
+| `source` | string | No | Image source: URL, file path, or 'clipboard' (for action=open) |
+| `diagram` | string | No | Pikchr diagram code (for action=pikchr) |
+
+---
+
+## buddy_manager
+
+View all buddy tools and navigate to their source files.
+
+### Parameters
+
+None.
+
+---
+
+## dotfyle_search
+
+Search for Neovim plugins on Dotfyle.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `message` | string | No | Search query for plugins |
+
+---
+
+## lazy_manager
+
+Browse and edit lazy.nvim plugin config files.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `message` | string | No | Search query to filter config files |

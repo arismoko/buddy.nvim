@@ -1,0 +1,31 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": "repomix-output.txt",
+    "style": "markdown"
+  },
+  "include": [
+    "lua/**/*.lua",
+    "plugin/**/*.lua",
+    "plugins/**/lua/**/*.lua",
+    "mcp/buddy-mcp-proxy/src/**/*.ts"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "tests/**",
+      "doc/**",
+      "docs/**",
+      "scripts/**",
+      "deps/**",
+      "*.txt",
+      "*.md",
+      "*.json",
+      "*.yaml",
+      "*.yml",
+      "mcp/buddy-mcp-proxy/dist/**",
+      "mcp/buddy-mcp-proxy/node_modules/**"
+    ]
+  }
+}

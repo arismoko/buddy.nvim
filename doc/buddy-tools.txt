@@ -1,17 +1,15 @@
 *buddy-tools.txt*  Tool reference for buddy
 
-This document describes all available buddy tools.
+This document describes the built-in buddy tools.
 Each tool can be called by AI assistants through MCP.
 
 For main documentation, see |buddy|.
 
-TOOLS                                              *buddy-tools*
+TOOLS                                                              *buddy-tools*
 
   |buddy.tools.buffer|
   |buddy.tools.command|
-  |buddy.tools.dashboard|
   |buddy.tools.diagnostics|
-  |buddy.tools.dotfyle_search|
   |buddy.tools.edit|
   |buddy.tools.fold|
   |buddy.tools.grep|
@@ -27,9 +25,9 @@ TOOLS                                              *buddy-tools*
 
 ==============================================================================
 
-buddy.tools.buffer                              *buddy.tools.buffer*
+buddy.tools.buffer                                        *buddy.tools.buffer*
 
-Read and list Neovim buffers
+Read and list Neovim buffers (includes unsaved changes, unlike file read)
 
 Parameters: ~
   {action}  (required)
@@ -41,9 +39,17 @@ Parameters: ~
       Type: number
       Buffer number. Optional - defaults to current buffer if omitted.
 
+  {limit}  (optional)
+      Type: number
+      Number of lines to read (defaults to 2000). For get_content action.
+
+  {offset}  (optional)
+      Type: number
+      Line number to start reading from (0-based). For get_content action.
+
 ------------------------------------------------------------------------------
 
-buddy.tools.command                            *buddy.tools.command*
+buddy.tools.command                                      *buddy.tools.command*
 
 Execute Vim commands
 
@@ -54,13 +60,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.dashboard                        *buddy.tools.dashboard*
-
-View all buddy tools and navigate to their source files
-
-------------------------------------------------------------------------------
-
-buddy.tools.diagnostics                    *buddy.tools.diagnostics*
+buddy.tools.diagnostics                              *buddy.tools.diagnostics*
 
 Get LSP diagnostics from Neovim
 
@@ -83,31 +83,21 @@ Parameters: ~
       diagnostics.
 
   {severity}  (optional)
-      Type: error | warn | info | hint | all
+      Type: error | warning | info | hint | all
       Filter by severity level. Defaults to 'all'.
 
 ------------------------------------------------------------------------------
 
-buddy.tools.dotfyle_search              *buddy.tools.dotfyle_search*
+buddy.tools.edit                                            *buddy.tools.edit*
 
-Search for Neovim plugins on Dotfyle
-
-Parameters: ~
-  {message}  (optional)
-      Type: string
-      Search query for plugins (optional)
-
-------------------------------------------------------------------------------
-
-buddy.tools.edit                                  *buddy.tools.edit*
-
-Edit buffer content
+Edit buffer content (works on unsaved buffers, unlike file edit)
 
 Parameters: ~
   {action}  (required)
-      Type: insert | replace | delete | replace_all
+      Type: insert | replace | delete | replace_all | replace_match
       insert: insert lines at position, replace: replace line range, delete:
-      delete line range, replace_all: replace entire buffer content
+      delete line range, replace_all: replace entire buffer,
+      replace_match: find and replace text (recommended)
 
   {content}  (optional)
       Type: string
@@ -117,13 +107,25 @@ Parameters: ~
       Type: number
       End line for replace/delete range
 
-  {line}  (required)
+  {line}  (optional)
       Type: number
       Line number (1-indexed) for insert/replace/delete
 
+  {newString}  (optional)
+      Type: string
+      Replacement text (for replace_match action)
+
+  {oldString}  (optional)
+      Type: string
+      Text to find and replace (for replace_match action)
+
+  {replaceAll}  (optional)
+      Type: boolean
+      Replace all occurrences (for replace_match, default: false)
+
 ------------------------------------------------------------------------------
 
-buddy.tools.fold                                  *buddy.tools.fold*
+buddy.tools.fold                                            *buddy.tools.fold*
 
 Manage code folds
 
@@ -144,7 +146,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.grep                                  *buddy.tools.grep*
+buddy.tools.grep                                            *buddy.tools.grep*
 
 Project-wide search using vimgrep with quickfix list
 
@@ -153,13 +155,17 @@ Parameters: ~
       Type: string
       File pattern to search in (default: **/* for all files)
 
+  {path}  (optional)
+      Type: string
+      Directory to search in (default: current working directory)
+
   {pattern}  (required)
       Type: string
       Search pattern to grep for
 
 ------------------------------------------------------------------------------
 
-buddy.tools.init                                  *buddy.tools.init*
+buddy.tools.init                                            *buddy.tools.init*
 
 Scaffold a new buddy Lua tool with the correct structure
 
@@ -172,13 +178,13 @@ Parameters: ~
       Type: string
       Tool name (snake_case, e.g. 'my_tool')
 
-  {template}  (optional)
-      Type: basic | async | plugin | full
-      Template type to use
+  {path}  (optional)
+      Type: string
+      Custom path for tool (default: stdpath('data')/buddy-tools/)
 
 ------------------------------------------------------------------------------
 
-buddy.tools.macro                                *buddy.tools.macro*
+buddy.tools.macro                                          *buddy.tools.macro*
 
 Record and play macros
 
@@ -197,7 +203,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.navigation                      *buddy.tools.navigation*
+buddy.tools.navigation                                *buddy.tools.navigation*
 
 Navigate Neovim: marks, jumps, and cursor movement
 
@@ -223,11 +229,11 @@ Parameters: ~
 
   {mark}  (optional)
       Type: string
-      Mark character (a-z) for set_mark or goto_mark
+      Mark character (a-z or A-Z) for set_mark or goto_mark
 
 ------------------------------------------------------------------------------
 
-buddy.tools.register                          *buddy.tools.register*
+buddy.tools.register                                    *buddy.tools.register*
 
 Access Neovim registers
 
@@ -247,7 +253,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.search                              *buddy.tools.search*
+buddy.tools.search                                        *buddy.tools.search*
 
 Search and replace in current buffer
 
@@ -278,14 +284,14 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.status                              *buddy.tools.status*
+buddy.tools.status                                        *buddy.tools.status*
 
 Get comprehensive Neovim status including cursor position, mode, marks, and
 registers
 
 ------------------------------------------------------------------------------
 
-buddy.tools.tab                                    *buddy.tools.tab*
+buddy.tools.tab                                              *buddy.tools.tab*
 
 Manage Neovim tabs
 
@@ -306,7 +312,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.visual                              *buddy.tools.visual*
+buddy.tools.visual                                        *buddy.tools.visual*
 
 Create visual selections
 
@@ -329,7 +335,7 @@ Parameters: ~
 
 ------------------------------------------------------------------------------
 
-buddy.tools.window                              *buddy.tools.window*
+buddy.tools.window                                        *buddy.tools.window*
 
 Manage Neovim windows
 

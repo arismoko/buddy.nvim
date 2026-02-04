@@ -12,7 +12,12 @@
     ```lua
     {
       "arismoko/buddy.nvim",
-      dependencies = { "echasnovski/mini.nvim" },
+      dependencies = {
+        "echasnovski/mini.nvim",
+        -- Optional: Companion plugins
+        -- { "arismoko/buddy_core.nvim" }, -- Core tools (buddy_manager, dotfyle, lazy)
+        -- { "arismoko/buddy_viz.nvim" },  -- Visualization tools (charts, images)
+      },
       lazy = false,
       config = function()
         require("buddy").setup({

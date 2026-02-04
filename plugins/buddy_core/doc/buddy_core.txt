@@ -1,0 +1,42 @@
+*buddy_core.txt*  Core companion tools for buddy.nvim
+
+This document describes tools provided by the buddy_core plugin.
+These tools require the buddy_core plugin to be installed.
+
+TOOLS                                                               *buddy_core*
+
+  |buddy_core.tools.buddy_manager|
+  |buddy_core.tools.dotfyle_search|
+  |buddy_core.tools.lazy_manager|
+
+==============================================================================
+
+buddy_core.tools.buddy_manager                *buddy_core.tools.buddy_manager*
+
+View all buddy tools and navigate to their source files
+
+------------------------------------------------------------------------------
+
+buddy_core.tools.dotfyle_search              *buddy_core.tools.dotfyle_search*
+
+Search for Neovim plugins on Dotfyle
+
+Parameters: ~
+  {message}  (optional)
+      Type: string
+      Search query for plugins (optional)
+
+------------------------------------------------------------------------------
+
+buddy_core.tools.lazy_manager                  *buddy_core.tools.lazy_manager*
+
+Browse and edit lazy.nvim plugin config files
+
+Parameters: ~
+  {message}  (optional)
+      Type: string
+      Search query to filter config files (optional)
+
+------------------------------------------------------------------------------
+
+ vim:tw=78:ts=8:ft=help:norl:

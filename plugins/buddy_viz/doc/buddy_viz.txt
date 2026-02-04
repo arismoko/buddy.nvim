@@ -1,0 +1,52 @@
+*buddy_viz.txt*  Visualization tools for buddy.nvim
+
+This document describes tools provided by the buddy_viz plugin.
+These tools require the buddy_viz plugin to be installed.
+
+TOOLS                                                                *buddy_viz*
+
+  |buddy_viz.tools.viz|
+
+==============================================================================
+
+buddy_viz.tools.viz                                      *buddy_viz.tools.viz*
+
+Visualization tool for images, charts, and diagrams
+
+Parameters: ~
+  {action}  (required)
+      Type: chart | image | open | pikchr
+      The visualization action to perform
+
+  {data}  (optional)
+      Type: array
+      Data points for chart
+
+  {diagram}  (optional)
+      Type: string
+      Pikchr diagram code (for action=pikchr). Example: "box "Hello"; arrow;
+      circle "World""
+
+  {path}  (optional)
+      Type: string
+      Absolute path to image file (for action=image)
+
+  {series}  (optional)
+      Type: array
+      Series names matching values array
+
+  {source}  (optional)
+      Type: string
+      Image source: URL, file path, or 'clipboard' (for action=open)
+
+  {title}  (optional)
+      Type: string
+      Chart title (for action=chart)
+
+  {type}  (optional)
+      Type: bar | line | pie
+      Chart type (for action=chart)
+
+------------------------------------------------------------------------------
+
+ vim:tw=78:ts=8:ft=help:norl:
