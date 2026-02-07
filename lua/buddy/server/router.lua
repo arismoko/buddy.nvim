@@ -5,6 +5,21 @@ local uv = vim.uv
 
 local M = {}
 
+-- Auth token for Bearer authentication (nil = auth disabled)
+local _auth_token = nil
+
+--- Set the auth token for request validation
+---@param token string|nil The Bearer token (nil disables auth)
+function M.set_auth_token(token)
+  _auth_token = token
+end
+
+--- Get the current auth token (for testing)
+---@return string|nil
+function M.get_auth_token()
+  return _auth_token
+end
+
 local function parse_query_params(path)
   local query_start = path:find("?")
   if not query_start then
@@ -33,6 +48,21 @@ function M.handle(http_server, client, request, body)
   local params, path = parse_query_params(request.path or "")
   request.params = params
   request.path = path
+
+  -- Auth check: skip for /health, enforce for all other endpoints
+  if _auth_token and path ~= "/health" then
+    local auth_header = request.headers["authorization"] or ""
+    local provided_token = auth_header:match("^Bearer%s+(.+)$")
+    if provided_token ~= _auth_token then
+      http_server:send_response(client, 401, {["Content-Type"] = "application/json"}, vim.json.encode({
+        error = {
+          code = -32001,
+          message = "Unauthorized: invalid or missing Bearer token",
+        },
+      }))
+      return
+    end
+  end
 
   if request.method == "GET" and path == "/sse" then
     M._handle_sse(http_server, client, request)

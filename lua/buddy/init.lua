@@ -28,6 +28,7 @@ M._actual_port = nil
 ---@field host string Server host (default: "127.0.0.1")
 ---@field port number Server port (default: 7234)
 ---@field auto_start boolean Start server automatically (default: false)
+---@field auth boolean Enable Bearer token auth on HTTP endpoints (default: true)
 ---@field watch boolean Enable hot reload file watching (default: true)
 ---@field debug boolean Enable debug logging (default: false)
 ---@field tools table Tool configuration
@@ -92,6 +93,19 @@ function M.start()
   local config = require("buddy.config")
   local cfg = config.get()
 
+  -- Generate auth token if auth is enabled
+  local auth_token = nil
+  if cfg.auth then
+    local uv = vim.uv
+    -- Generate a cryptographically-sufficient random token from hrtime + pid + random
+    local raw = string.format("%s:%s:%s:%s", uv.hrtime(), vim.fn.getpid(), math.random(1e9), uv.hrtime())
+    auth_token = vim.fn.sha256(raw)
+  end
+
+  -- Set auth token on router before starting server so it's ready for first connection
+  local router = require("buddy.server.router")
+  router.set_auth_token(auth_token)
+
   local actual_port = server.start(cfg.host, cfg.port)
   M._server = server.get()
   M._actual_port = actual_port
@@ -102,6 +116,7 @@ function M.start()
   sessions.register({
     port = actual_port,
     host = cfg.host,
+    auth_token = auth_token,
   })
 
   -- Start hot reload watching if enabled

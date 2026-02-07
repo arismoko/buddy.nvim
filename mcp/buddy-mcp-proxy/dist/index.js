@@ -58,6 +58,7 @@ function normalizeSessions(raw) {
           cwd,
           label: s.label ?? null,
           pid: typeof s.pid === "number" ? s.pid : void 0,
+          auth_token: typeof s.auth_token === "string" ? s.auth_token : void 0,
           started_at: s.started_at,
           last_seen: typeof s.last_seen === "number" ? s.last_seen : void 0
         }
@@ -257,7 +258,15 @@ var DownstreamManager = class {
     const url = `http://${session.host || "127.0.0.1"}:${session.port}/sse`;
     log("info", `Connecting to downstream: ${url}`);
     try {
-      this.transport = new SSEClientTransport(new URL(url));
+      const transportOpts = {};
+      if (session.auth_token) {
+        transportOpts.requestInit = {
+          headers: {
+            "Authorization": `Bearer ${session.auth_token}`
+          }
+        };
+      }
+      this.transport = new SSEClientTransport(new URL(url), transportOpts);
       this.client = new Client(
         { name: "buddy-mcp-proxy", version: "0.1.0" },
         { capabilities: {} }

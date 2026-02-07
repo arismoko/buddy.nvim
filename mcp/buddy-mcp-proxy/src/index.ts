@@ -28,6 +28,7 @@ interface BuddySession {
   cwd: string;
   label?: string | null;
   pid?: number;
+  auth_token?: string | null;
   started_at?: number | string;
   last_seen?: number;
 }
@@ -97,6 +98,7 @@ function normalizeSessions(raw: unknown): BuddySession[] {
           cwd,
           label: (s as any).label ?? null,
           pid: typeof (s as any).pid === "number" ? (s as any).pid : undefined,
+          auth_token: typeof (s as any).auth_token === "string" ? (s as any).auth_token : undefined,
           started_at: (s as any).started_at,
           last_seen: typeof (s as any).last_seen === "number" ? (s as any).last_seen : undefined,
           } satisfies BuddySession,
@@ -339,7 +341,16 @@ class DownstreamManager {
     log("info", `Connecting to downstream: ${url}`);
 
     try {
-      this.transport = new SSEClientTransport(new URL(url));
+      // Pass auth token as Bearer header if available
+      const transportOpts: { requestInit?: RequestInit } = {};
+      if (session.auth_token) {
+        transportOpts.requestInit = {
+          headers: {
+            "Authorization": `Bearer ${session.auth_token}`,
+          },
+        };
+      }
+      this.transport = new SSEClientTransport(new URL(url), transportOpts);
       this.client = new Client(
         { name: "buddy-mcp-proxy", version: "0.1.0" },
         { capabilities: {} }

@@ -8,6 +8,7 @@ local defaults = {
   host = "127.0.0.1",  -- Loopback only by default for security
   port = 7234,
   auto_start = false,
+  auth = true,  -- Require Bearer token auth on HTTP endpoints (recommended)
   watch = true,  -- Enable hot reload file watching
   log_level = "info",
   tools = {

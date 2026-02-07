@@ -253,6 +253,7 @@ function HTTPServer:send_response(client, status, headers, body)
     [200] = "OK",
     [202] = "Accepted",
     [400] = "Bad Request",
+    [401] = "Unauthorized",
     [404] = "Not Found",
     [500] = "Internal Server Error",
   })[status] or "OK"
