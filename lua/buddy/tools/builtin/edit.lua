@@ -47,11 +47,8 @@ return {
     -- Convert content to table if it's a string
     local lines = args.content
     if type(lines) == "string" then
-      -- Split string by newline
-      lines = {}
-      for l in string.gmatch(args.content, "[^\n]+") do
-        table.insert(lines, l)
-      end
+      -- Split string by newline (preserving empty lines)
+      lines = vim.split(args.content, "\n", { plain = true })
     elseif not lines then
       lines = {}
     end

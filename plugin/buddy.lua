@@ -25,10 +25,6 @@ vim.api.nvim_create_user_command("BuddyStatus", function()
   end
 end, { desc = "Show buddy status" })
 
-vim.api.nvim_create_user_command("BuddyInstallExamples", function()
-  require("buddy").reinstall_examples()
-end, { desc = "Reinstall buddy example tools" })
-
 vim.api.nvim_create_user_command("BuddyReloadTools", function()
   require("buddy.tools.discovery").reload_all()
   print("[buddy] All tools reloaded")

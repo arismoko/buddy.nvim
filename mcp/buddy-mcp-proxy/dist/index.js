@@ -7,11 +7,15 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   CallToolRequestSchema,
-  ListToolsRequestSchema
+  ListToolsRequestSchema,
+  ToolListChangedNotificationSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+var execFileAsync = promisify(execFile);
 function log(level, msg, data) {
   const timestamp = (/* @__PURE__ */ new Date()).toISOString();
   const line = `[${timestamp}] [${level.toUpperCase()}] ${msg}`;
@@ -115,6 +119,71 @@ function resolveSession(sessions, selector) {
   }
   return null;
 }
+var buddyInstallStatus = null;
+var buddyInstallCheckPromise = null;
+async function checkBuddyInstalled() {
+  if (buddyInstallStatus !== null) {
+    return buddyInstallStatus;
+  }
+  if (!buddyInstallCheckPromise) {
+    buddyInstallCheckPromise = (async () => {
+      try {
+        const { stdout } = await execFileAsync("nvim", [
+          "--headless",
+          "-c",
+          `lua local ok,_=pcall(require,'buddy'); print(ok and 'BUDDY_OK' or 'BUDDY_MISSING')`,
+          "-c",
+          "qa!"
+        ], { timeout: 1e4 });
+        if (stdout.includes("BUDDY_OK")) {
+          buddyInstallStatus = "installed";
+          log("info", "buddy.nvim install check: installed");
+        } else {
+          buddyInstallStatus = "missing";
+          log("warn", "buddy.nvim install check: NOT installed");
+        }
+      } catch (err) {
+        log("error", "buddy.nvim install check failed (nvim not found?)", err);
+        buddyInstallStatus = "check_failed";
+      }
+      buddyInstallCheckPromise = null;
+      return buddyInstallStatus;
+    })();
+  }
+  return buddyInstallCheckPromise;
+}
+async function getNoSessionsHint() {
+  const sessionsPath = getSessionsPath();
+  const status = await checkBuddyInstalled();
+  const lines = [];
+  lines.push("");
+  lines.push("\u2500\u2500 Troubleshooting \u2500\u2500");
+  if (status === "missing") {
+    lines.push("\u2717 buddy.nvim is NOT installed in Neovim.");
+    lines.push("  Install it first: https://github.com/arismoko/buddy.nvim#installation");
+  } else if (status === "installed") {
+    lines.push("\u2713 buddy.nvim is installed in Neovim.");
+    lines.push("");
+    lines.push("To start a buddy server, do ONE of:");
+    lines.push("  \u2022 Open Neovim with auto_start enabled:");
+    lines.push('      require("buddy").setup({ auto_start = true })');
+    lines.push("  \u2022 Or start manually inside Neovim:");
+    lines.push('      :lua require("buddy").start()');
+  } else {
+    lines.push("? Could not detect whether buddy.nvim is installed (nvim not found on PATH).");
+    lines.push("");
+    lines.push("If buddy.nvim is installed, start a server:");
+    lines.push("  \u2022 Open Neovim with auto_start enabled:");
+    lines.push('      require("buddy").setup({ auto_start = true })');
+    lines.push("  \u2022 Or start manually inside Neovim:");
+    lines.push('      :lua require("buddy").start()');
+  }
+  lines.push("");
+  lines.push(`Sessions file: ${sessionsPath}`);
+  const exists = fs.existsSync(sessionsPath);
+  lines.push(`  ${exists ? "\u2713 File exists" : "\u2717 File does not exist (no session has ever started)"}`);
+  return lines.join("\n");
+}
 var META_TOOLS = [
   {
     name: "buddy_sessions_list",
@@ -179,6 +248,10 @@ var DownstreamManager = class {
   transport = null;
   currentSession = null;
   cachedTools = [];
+  onToolsChanged = null;
+  setOnToolsChanged(cb) {
+    this.onToolsChanged = cb;
+  }
   async connect(session) {
     await this.disconnect();
     const url = `http://${session.host || "127.0.0.1"}:${session.port}/sse`;
@@ -191,6 +264,16 @@ var DownstreamManager = class {
       );
       await this.client.connect(this.transport);
       this.currentSession = session;
+      this.client.setNotificationHandler(
+        ToolListChangedNotificationSchema,
+        async () => {
+          log("info", "Downstream tools changed, refreshing...");
+          await this.refreshTools();
+          if (this.onToolsChanged) {
+            await this.onToolsChanged();
+          }
+        }
+      );
       await this.refreshTools();
       log("info", `Connected to session ${session.id} on port ${session.port}`);
     } catch (err) {
@@ -279,6 +362,75 @@ var DownstreamManager = class {
     return this.client !== null && this.currentSession !== null;
   }
 };
+var SessionPoller = class _SessionPoller {
+  static BACKOFF_MS = 3e4;
+  timer = null;
+  connecting = false;
+  failedSessions = /* @__PURE__ */ new Map();
+  intervalMs;
+  downstream;
+  onConnected;
+  constructor(opts) {
+    this.downstream = opts.downstream;
+    this.intervalMs = opts.intervalMs ?? 3e3;
+    this.onConnected = opts.onConnected;
+  }
+  start() {
+    if (this.timer)
+      return;
+    log("info", `Session poller started (every ${this.intervalMs}ms)`);
+    this.timer = setInterval(() => this.poll(), this.intervalMs);
+    this.poll();
+  }
+  stop() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+      log("info", "Session poller stopped");
+    }
+  }
+  /** Restart polling (e.g. after a disconnect) */
+  ensure() {
+    if (!this.downstream.isConnected() && !this.timer) {
+      this.start();
+    }
+  }
+  async poll() {
+    if (this.downstream.isConnected() || this.connecting)
+      return;
+    const sessions = loadSessions();
+    if (sessions.length === 0)
+      return;
+    const sorted = [...sessions].sort(
+      (a, b) => (b.last_seen ?? 0) - (a.last_seen ?? 0)
+    );
+    const now = Date.now();
+    let candidates = sorted.filter((s) => {
+      const failedAt = this.failedSessions.get(s.id);
+      return failedAt === void 0 || now - failedAt >= _SessionPoller.BACKOFF_MS;
+    });
+    if (candidates.length === 0) {
+      log("info", "All sessions in backoff \u2014 clearing failed set and retrying");
+      this.failedSessions.clear();
+      candidates = sorted;
+    }
+    const target = candidates[0];
+    this.connecting = true;
+    try {
+      log("info", `Auto-connecting to session ${target.id} (port ${target.port})`);
+      await this.downstream.connect(target);
+      this.failedSessions.clear();
+      this.stop();
+      await this.onConnected();
+      log("info", `Auto-connected to session ${target.id}`);
+    } catch (err) {
+      this.failedSessions.set(target.id, Date.now());
+      log("warn", `Auto-connect to ${target.id} failed (backoff ${_SessionPoller.BACKOFF_MS}ms), will try next session`, err);
+    } finally {
+      this.connecting = false;
+    }
+  }
+};
 async function main() {
   log("info", "Starting buddy-mcp-proxy");
   const downstream = new DownstreamManager();
@@ -296,6 +448,12 @@ async function main() {
       log("error", "Failed to send tools/list_changed notification", err);
     }
   };
+  downstream.setOnToolsChanged(notifyToolsChanged);
+  const poller = new SessionPoller({
+    downstream,
+    onConnected: notifyToolsChanged
+  });
+  poller.start();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     if (downstream.isConnected()) {
       await downstream.checkHealth();
@@ -314,6 +472,18 @@ async function main() {
     if (name === "buddy_sessions_list") {
       const sessions = loadSessions();
       const currentId = downstream.getCurrentSession()?.id;
+      if (sessions.length === 0) {
+        const hint = await getNoSessionsHint();
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No buddy.nvim sessions found.
+${hint}`
+            }
+          ]
+        };
+      }
       return {
         content: [
           {
@@ -362,11 +532,15 @@ async function main() {
       const sessions = loadSessions();
       const session = resolveSession(sessions, selector);
       if (!session) {
+        const hint = sessions.length === 0 ? await getNoSessionsHint() : "";
+        const availableInfo = sessions.length > 0 ? `
+Available sessions:
+${sessions.map((s) => `  \u2022 ${s.id} (cwd: ${s.cwd}${s.label ? `, label: ${s.label}` : ""})`).join("\n")}` : "";
         return {
           content: [
             {
               type: "text",
-              text: `Error: Session not found for selector ${JSON.stringify(selector)}`
+              text: `Error: Session not found for selector ${JSON.stringify(selector)}${availableInfo}${hint}`
             }
           ],
           isError: true
@@ -374,6 +548,7 @@ async function main() {
       }
       try {
         await downstream.connect(session);
+        poller.stop();
         await notifyToolsChanged();
         return {
           content: [
@@ -437,12 +612,14 @@ async function main() {
             try {
               await downstream.connect(stillExists);
             } catch {
+              poller.ensure();
             }
           } else {
             await downstream.refreshTools();
           }
         } else {
           await downstream.disconnect();
+          poller.ensure();
         }
         await notifyToolsChanged();
       }
@@ -465,11 +642,21 @@ async function main() {
       };
     }
     if (!downstream.isConnected()) {
+      const sessions = loadSessions();
+      let hint;
+      if (sessions.length === 0) {
+        hint = await getNoSessionsHint();
+      } else {
+        hint = `
+
+Available sessions (use buddy_session_select to connect):
+${sessions.sort((a, b) => (b.last_seen ?? 0) - (a.last_seen ?? 0)).map((s) => `  \u2022 ${s.id} (cwd: ${s.cwd}${s.label ? `, label: ${s.label}` : ""})`).join("\n")}`;
+      }
       return {
         content: [
           {
             type: "text",
-            text: `Error: No buddy.nvim session selected. Use buddy_sessions_list and buddy_session_select first.`
+            text: `Error: No buddy.nvim session selected. Use buddy_sessions_list and buddy_session_select first.${hint}`
           }
         ],
         isError: true
@@ -481,6 +668,7 @@ async function main() {
     } catch (err) {
       if (!downstream.isConnected()) {
         await notifyToolsChanged();
+        poller.ensure();
       }
       return {
         content: [
@@ -498,12 +686,14 @@ async function main() {
   log("info", "buddy-mcp-proxy running on stdio");
   process.on("SIGINT", async () => {
     log("info", "Shutting down...");
+    poller.stop();
     await downstream.disconnect();
     await server.close();
     process.exit(0);
   });
   process.on("SIGTERM", async () => {
     log("info", "Shutting down...");
+    poller.stop();
     await downstream.disconnect();
     await server.close();
     process.exit(0);

@@ -52,28 +52,37 @@ function M._handle_sse(http_server, client, _request)
 
   http_server.sse_connections[session_id] = sse_conn
 
-  -- Wire up notify callback on first SSE connection to broadcast to all sessions
+  -- Wire up notify callback to broadcast to all sessions
   local methods = require("buddy.mcp.methods")
-  if not methods._notify_callback then
-    methods.set_notify_callback(function(notification)
-      local message = {
-        jsonrpc = "2.0",
-        method = notification.method,
-      }
-      if notification.params then
-        message.params = notification.params
-      end
+  methods.set_notify_callback(function(notification)
+    local message = {
+      jsonrpc = "2.0",
+      method = notification.method,
+    }
+    if notification.params then
+      message.params = notification.params
+    end
 
-      -- Broadcast to all active SSE connections
-      for sid, conn in pairs(http_server.sse_connections) do
-        local sent = conn:send_data(message)
-        if not sent then
-          log.debug(string.format("Failed to broadcast notification to session %s", sid))
-        end
+    -- Broadcast to all active SSE connections
+    local dead_sessions = {}
+    for sid, conn in pairs(http_server.sse_connections) do
+      local sent = conn:send_data(message)
+      if not sent then
+        log.warn(string.format("Dead SSE connection detected, pruning session %s", sid))
+        table.insert(dead_sessions, sid)
       end
-    end)
-    log.debug("Hot reload notifications wired up")
-  end
+    end
+
+    -- Prune dead sessions (can't modify table during pairs iteration)
+    if #dead_sessions > 0 then
+      local sse_mgr = sse.SSEManager.get_instance()
+      for _, sid in ipairs(dead_sessions) do
+        sse_mgr:remove_session(sid)
+        http_server.sse_connections[sid] = nil
+      end
+    end
+  end)
+  log.debug("Notify callback wired up for SSE session %s", session_id)
 
   log.debug(string.format("SSE session created: %s", session_id))
 end

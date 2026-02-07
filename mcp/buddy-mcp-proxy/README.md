@@ -18,44 +18,50 @@ MCP proxy server for buddy.nvim sessions. This proxy allows OpenCode (or any MCP
 ## Installation
 
 ```bash
-cd mcp/buddy-mcp-proxy
-bun install
-bun run build
+npm install -g buddy-mcp-proxy
 ```
+
+Or use it directly with `npx` — no install needed (see Usage below).
 
 ## Usage
 
 ### With OpenCode
 
-Update `~/.config/opencode/opencode.jsonc`:
+Add to `~/.config/opencode/opencode.jsonc`:
 
 ```jsonc
 {
   "mcp": {
     "vim": {
       "type": "local",
-      "command": [
-        "node",
-        "/home/ari/Work/tries/2026-01-26-nvim-buddy-v3/mcp/buddy-mcp-proxy/dist/index.js"
-      ]
+      "command": ["npx", "buddy-mcp-proxy"]
     }
   }
 }
 ```
 
-Or using bunx (if published):
+### With Claude Desktop
+
+Add to your Claude Desktop MCP config:
 
 ```json
 {
-  "mcp": {
-    "servers": {
-      "buddy": {
-        "command": "bunx",
-        "args": ["buddy-mcp-proxy"]
-      }
+  "mcpServers": {
+    "vim": {
+      "command": "npx",
+      "args": ["buddy-mcp-proxy"]
     }
   }
 }
+```
+
+### From Source
+
+```bash
+cd mcp/buddy-mcp-proxy
+npm install
+npm run build
+node dist/index.js
 ```
 
 ### Development
@@ -65,10 +71,10 @@ Or using bunx (if published):
 bun run dev
 
 # Build for production
-bun run build
+npm run build
 
 # Type check
-bun run typecheck
+npm run typecheck
 ```
 
 ## Sessions Registry Format

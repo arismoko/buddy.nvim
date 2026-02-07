@@ -3,9 +3,16 @@
 
 local M = {}
 
-local stdout = vim.loop.new_tty(1, false)
-if not stdout then
-  error("failed to open stdout")
+local stdout = nil
+
+local function get_stdout()
+  if not stdout then
+    stdout = vim.loop.new_tty(1, false)
+    if not stdout then
+      return nil
+    end
+  end
+  return stdout
 end
 
 local uv = vim.uv or vim.loop
@@ -48,7 +55,8 @@ local DEBOUNCE_MS = 50
 local keypress_state = { o_x = 0, o_y = 0, zoom = 0 }
 
 local function delete_kitty_image()
-  stdout:write("\27_Ga=d\27\\")
+  local out = get_stdout()
+  if out then out:write("\27_Ga=d\27\\") end
 end
 
 local function close_viewer()
@@ -94,7 +102,7 @@ local function pngify(filepath)
   if ext == "png" then
     return filepath, nil
   end
-  local temp_file = "/tmp/nvim_buddy_pngify.png"
+  local temp_file = vim.fn.tempname() .. ".png"
   local cmd
   if ext == "gif" then
     cmd = "magick " .. vim.fn.shellescape(filepath) .. "[0] " .. temp_file
@@ -110,7 +118,7 @@ local function pngify(filepath)
 end
 
 local function rescale(filepath, w, h, zoom, o_x, o_y)
-  local temp_file = "/tmp/nvim_buddy_scaled.png"
+  local temp_file = vim.fn.tempname() .. ".png"
   if vim.fn.filereadable(temp_file) == 1 then
     vim.fn.delete(temp_file)
   end
@@ -165,7 +173,9 @@ local function draw_image(x, y, w, h)
   local chunk_size = 4096
 
   -- Position cursor before drawing
-  stdout:write("\27[" .. (x + 2) .. ";" .. (y + 4) .. "H")
+  local out = get_stdout()
+  if not out then return end
+  out:write("\27[" .. (x + 2) .. ";" .. (y + 4) .. "H")
 
   while pos <= #encoded_data do
     local chunk = encoded_data:sub(pos, pos + chunk_size - 1)
@@ -174,12 +184,12 @@ local function draw_image(x, y, w, h)
 
     -- Use fixed image ID i=10 with a=T (transmit and display)
     local cmd = "\27_Ga=T,i=10,q=1,r=" .. h .. ",c=" .. w .. ",C=1,f=100,m=" .. m .. ";" .. chunk .. "\27\\"
-    stdout:write(cmd)
+    out:write(cmd)
     uv.sleep(1)
   end
 
   -- Reposition cursor
-  stdout:write("\27[" .. (x + 1) .. ";" .. (y + 3) .. "H")
+  out:write("\27[" .. (x + 1) .. ";" .. (y + 3) .. "H")
 end
 
 local function redraw()

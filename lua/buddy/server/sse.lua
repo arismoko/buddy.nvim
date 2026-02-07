@@ -25,9 +25,10 @@ function SSEConnection:_send_headers()
 
   local response = "HTTP/1.1 200 OK\r\n" .. table.concat(headers, "\r\n") .. "\r\n\r\n"
 
+  local conn = self
   self.client:write(response, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE header write error: %s", err))
+      conn.closed = true
     end
   end))
 end
@@ -41,9 +42,10 @@ function SSEConnection:send_data(data)
   local data_json = vim.json.encode(data)
   local event = string.format("data: %s\n\n", data_json)
 
+  local conn = self
   self.client:write(event, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE data write error: %s", err))
+      conn.closed = true
     end
   end))
 
@@ -57,9 +59,10 @@ function SSEConnection:send_raw_event(event_type, data)
 
   local event = string.format("event: %s\ndata: %s\n\n", event_type, data)
 
+  local conn = self
   self.client:write(event, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE event write error: %s", err))
+      conn.closed = true
     end
   end))
 
@@ -107,6 +110,14 @@ end
 
 function SSEManager:get_session(session_id)
   return self.sessions[session_id]
+end
+
+function SSEManager:remove_session(session_id)
+  local conn = self.sessions[session_id]
+  if conn then
+    conn:close()
+    self.sessions[session_id] = nil
+  end
 end
 
 return {

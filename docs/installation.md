@@ -56,22 +56,32 @@
 
 buddy.nvim uses **HTTP + Server-Sent Events (SSE)** transport, compatible with modern MCP clients.
 
-### OpenCode
+There are two ways to connect:
+
+### Option A: Via Proxy (Recommended)
+
+The [`buddy-mcp-proxy`](https://www.npmjs.com/package/buddy-mcp-proxy) automatically discovers running Neovim sessions and supports switching between multiple instances. No port configuration needed.
+
+```bash
+npm install -g buddy-mcp-proxy
+```
+
+#### OpenCode
 
 Add to `~/.config/opencode/opencode.jsonc`:
 
 ```jsonc
 {
   "mcp": {
-    "buddy": {
-      "type": "remote",
-      "url": "http://127.0.0.1:7234/sse"
+    "vim": {
+      "type": "local",
+      "command": ["npx", "buddy-mcp-proxy"]
     }
   }
 }
 ```
 
-### Claude Desktop
+#### Claude Desktop
 
 Add to your Claude Desktop config:
 
@@ -84,7 +94,37 @@ Add to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "buddy": {
+    "vim": {
+      "command": "npx",
+      "args": ["buddy-mcp-proxy"]
+    }
+  }
+}
+```
+
+### Option B: Direct SSE Connection
+
+Connect directly to a specific Neovim instance by URL. Simpler, but you must know the port and can only connect to one session.
+
+#### OpenCode
+
+```jsonc
+{
+  "mcp": {
+    "vim": {
+      "type": "remote",
+      "url": "http://127.0.0.1:7234/sse"
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "vim": {
       "url": "http://127.0.0.1:7234/sse"
     }
   }

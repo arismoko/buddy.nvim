@@ -54,14 +54,30 @@ function M.start()
   registry.load_builtins()
 
   -- Add each tool subdirectory to runtimepath (not just the parent)
+  -- and source their plugin files (since we're past startup)
   local default_tools_dir = vim.fn.stdpath("data") .. "/buddy-tools"
   if vim.fn.isdirectory(default_tools_dir) == 1 then
     local rtp = vim.o.runtimepath
     for name, type in vim.fs.dir(default_tools_dir) do
       if type == "directory" then
         local tool_path = default_tools_dir .. "/" .. name
-        if not rtp:find(tool_path, 1, true) then
+        local is_new = not rtp:find(tool_path, 1, true)
+        if is_new then
           vim.o.runtimepath = vim.o.runtimepath .. "," .. tool_path
+        end
+        -- Source plugin files (Neovim doesn't auto-load after startup)
+        if is_new then
+          local plugin_dir = tool_path .. "/plugin"
+          if vim.fn.isdirectory(plugin_dir) == 1 then
+            for pname, ptype in vim.fs.dir(plugin_dir) do
+              if ptype == "file" and pname:match("%.lua$") then
+                local ok, err = pcall(vim.cmd.source, plugin_dir .. "/" .. pname)
+                if not ok then
+                  vim.notify("[buddy] Failed to source " .. pname .. ": " .. tostring(err), vim.log.levels.WARN)
+                end
+              end
+            end
+          end
         end
       end
     end
