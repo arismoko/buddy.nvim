@@ -1,5 +1,6 @@
 references/
 deps/
+.slim/
 
 # Node/Bun
 node_modules/
@@ -14,5 +15,5 @@ TODO.md
 
 # MkDocs build output
 site/
-codemap.md
+**/codemap.md
 CODEMAP_SUMMARY.md
