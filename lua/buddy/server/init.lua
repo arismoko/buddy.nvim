@@ -1,5 +1,5 @@
-local HTTPServer = require("buddy.server.http")
-local router = require("buddy.server.router")
+local HTTPServer = require("buddy.transport.http.server")
+local router = require("buddy.transport.router")
 
 local M = {}
 
