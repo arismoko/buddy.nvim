@@ -19,24 +19,34 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 ## Quick Start
 
 ```lua
-require("buddy").setup({
-  auto_start = true,
-  port = 7234,
-})
+-- lazy.nvim
+{
+  "arismoko/buddy.nvim",
+  dependencies = { "echasnovski/mini.nvim", "nvim-neotest/nvim-nio" },
+  lazy = false,
+  config = function()
+    require("buddy").setup({
+      auto_start = true,
+      port = 7234,
+    })
+  end,
+}
 ```
+
+Then connect your MCP client (see [Installation](installation.md) for OpenCode, Claude Desktop, and proxy setup).
 
 ## Features
 
-- 🔌 **MCP Protocol** - Full Model Context Protocol implementation via HTTP/SSE
-- 🛠️ **Built-in Tools** - Buffer, edit, navigation, search, diagnostics, and more
-- 🎯 **Dual Interface** - Same tool works via MCP and Neovim keymaps/commands
-- 🔧 **Extensible** - Create custom tools in Lua with simple API
-- 🔄 **Hot Reload** - Edit tool files, keymaps update automatically
-- 🔒 **Secure** - Localhost-only by default
+- **MCP Protocol** - Full Model Context Protocol implementation via HTTP/SSE
+- **Built-in Tools** - Buffer, edit, navigation, search, diagnostics, and more
+- **Dual Interface** - Same tool works via MCP and Neovim keymaps/commands
+- **Extensible** - Create custom tools in Lua with simple API
+- **Hot Reload** - Edit tool files, keymaps update automatically
+- **Secure** - Localhost-only by default, Bearer token auth on HTTP endpoints
 
 ## Documentation
 
 - [Installation](installation.md) - Get up and running
 - [Configuration](configuration.md) - Customize behavior
-- [Tools Reference](tools.md) - Built-in tool documentation
+- [Tools Reference](tools.md) - Built-in tool documentation with MCP examples
 - [Creating Tools](creating-tools.md) - Build your own tools

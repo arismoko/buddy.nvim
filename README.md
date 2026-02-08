@@ -152,15 +152,15 @@ By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only lo
 **To expose on LAN** (e.g., for remote AI clients):
 
 ```lua
-require("nvim-buddy").setup({
+require("buddy").setup({
   host = "0.0.0.0",  -- Listen on all interfaces
 })
 ```
 
-⚠️ **Warning**: There is no authentication or TLS. If you bind to `0.0.0.0`, anyone on your network can control your editor. Consider:
-- Using a firewall to restrict access
-- SSH tunneling for remote access
-- Only enabling on trusted networks
+> **Warning**: There is no authentication or TLS. If you bind to `0.0.0.0`, anyone on your network can control your editor. Consider:
+> - Using a firewall to restrict access
+> - SSH tunneling for remote access
+> - Only enabling on trusted networks
 
 ---
 
@@ -184,13 +184,15 @@ require("nvim-buddy").setup({
 | `status`      | Get cursor, mode, marks, registers             |
 | `init`        | Scaffold new user tools                        |
 
+See [docs/tools.md](docs/tools.md) for full reference with MCP JSON examples.
+
 ---
 
 ## Creating Tools
 
-Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. nvim-buddy discovers these automatically.
+Tools live in `lua/{plugin}/buddy.lua` files. buddy.nvim discovers them automatically from the runtimepath.
 
-### Format 1: Simple Tools List
+### Format 1: Tools List
 
 For plugins with one or more independent tools:
 
@@ -209,71 +211,66 @@ return {
         required = { "name" },
       },
       run = function(args)
-        return { content = { { type = "text", text = "Hello, " .. args.name } } }
+        return "Hello, " .. args.name
+      end,
+    },
+    {
+      name = "farewell",
+      description = "Say goodbye",
+      input_schema = {
+        type = "object",
+        properties = {
+          name = { type = "string", description = "Name to farewell" },
+        },
+        required = { "name" },
+      },
+      run = function(args)
+        return "Goodbye, " .. args.name
       end,
     },
   }
 }
 ```
 
-### Format 2: Action-Based Tool (Recommended for Multi-Action Tools)
+### Format 2: Single Tool
 
-For tools with multiple related actions, use the action-based pattern:
+For plugins that expose exactly one tool:
 
 ```lua
--- lua/viz/buddy.lua
+-- lua/my-plugin/buddy.lua
 return {
-  name = "viz",
-  description = "Visualization tool for images, charts, and diagrams",
-  actions = {
-    image = require("viz.tools.image"),
-    chart = require("viz.tools.chart"),
-  },
-}
-
--- lua/viz/tools/image.lua
-return {
-  description = "Display a local image",
+  name = "my_tool",
+  description = "Does a thing",
   input_schema = {
     type = "object",
     properties = {
-      path = { type = "string", description = "Path to image file" },
+      message = { type = "string", description = "Message to show" },
     },
-    required = { "path" },
+    required = {},
   },
   run = function(args)
-    -- implementation
+    vim.notify("Did the thing with: " .. (args.message or "nothing"))
+    return { success = true }
   end,
 }
 ```
 
-The framework auto-generates:
-- Unified input_schema from all actions
-- Action enum with descriptions (e.g., `"image: Display a local image, chart: Generate charts"`)
-- Routing to the correct action handler
-- Per-action validation with helpful error messages
+### Returning Results
 
-### Tool Format
-
-Individual tools (or actions) use this format:
+Tools return **raw Lua values**. buddy.nvim wraps them into MCP responses automatically:
 
 ```lua
-return {
-  name = "tool_name",           -- Tool name (optional for actions)
-  description = "What it does", -- Required
-  input_schema = {              -- JSON Schema for parameters
-    type = "object",
-    properties = {
-      param1 = { type = "string", description = "A parameter" },
-      action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
-    },
-    required = { "action" },
-  },
-  run = function(args)          -- Handler function
-    return { success = true, result = "..." }
-  end,
-}
+-- String → text content block
+return "Hello, world!"
+
+-- Table → JSON-encoded text content block
+return { success = true, data = "result" }
+
+-- nil → text content block with "nil"
+return nil
 ```
+
+> **Common mistake**: Don't return MCP envelopes like `{ content = { { type = "text", text = "..." } } }` from your tools. Just return the raw value. buddy.nvim wraps it for you.
 
 ### Adding Keymaps, Commands, Autocmds
 
@@ -319,17 +316,19 @@ Now your tool:
 
 Edit the file, keymaps and commands update automatically. No restart needed.
 
+See [docs/creating-tools.md](docs/creating-tools.md) for the full guide.
+
 ---
 
 ## Configuration
 
 ```lua
-local buddy = require("buddy")
-
-buddy.setup({
+require("buddy").setup({
   host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
   port = 7234,         -- Server port (default: 7234)
   auto_start = false,  -- Start on VimEnter (default: false)
+  auth = true,         -- Bearer token auth on HTTP endpoints (default: true)
+  watch = true,        -- Hot reload file watching (default: true)
   log_level = "info",  -- Log level: "debug", "info", "warn", "error"
   tools = {
     disabled = {},     -- Disable specific tools: {"grep", "diagnostics", ...}
@@ -361,6 +360,9 @@ buddy.restart()
 -- Check status
 local status = buddy.status()
 -- { running = true, port = 7234 }
+
+-- Call a tool programmatically
+local result = buddy.call("buffer", { action = "list" })
 
 -- Register a tool programmatically
 buddy.register_tool({
@@ -409,7 +411,7 @@ Check `:messages` for errors. Common issues:
 ### SSE connection failing
 
 Ensure:
-1. nvim-buddy is running (`:lua print(require('nvim-buddy').status().running)`)
+1. buddy.nvim is running: `:lua print(require('buddy').status().running)`
 2. The URL matches your config (default: `http://127.0.0.1:7234/sse`)
 3. No firewall blocking the connection
 

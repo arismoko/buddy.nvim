@@ -1,30 +1,38 @@
 # Creating Tools
 
-Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. buddy.nvim discovers these automatically.
+buddy.nvim discovers tools automatically from `lua/*/buddy.lua` files in the runtimepath.
+
+## Discovery
+
+On startup, buddy.nvim scans `lua/*/buddy.lua` across Neovim's runtimepath. Each file should return either:
+
+- A **tools list**: `{ tools = { tool1, tool2, ... } }` — registers multiple tools
+- A **single tool**: `{ name = "...", description = "...", run = function ... }` — registers one tool
 
 ## Basic Tool Structure
 
+Every tool needs `name`, `description`, `input_schema`, and `run`:
+
 ```lua
 return {
-  name = "tool_name",           -- Tool name (required)
-  description = "What it does", -- Required
-  input_schema = {              -- JSON Schema for parameters
+  name = "tool_name",
+  description = "What it does",
+  input_schema = {
     type = "object",
     properties = {
       param1 = { type = "string", description = "A parameter" },
-      action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
     },
-    required = { "action" },
+    required = { "param1" },
   },
-  run = function(args)          -- Handler function
-    return { success = true, result = "..." }
+  run = function(args)
+    return { success = true, result = args.param1 }
   end,
 }
 ```
 
 ## Tool Formats
 
-### Format 1: Simple Tools List
+### Format 1: Tools List
 
 For plugins with one or more independent tools:
 
@@ -46,13 +54,50 @@ return {
         return "Hello, " .. args.name
       end,
     },
+    {
+      name = "farewell",
+      description = "Say goodbye",
+      input_schema = {
+        type = "object",
+        properties = {
+          name = { type = "string", description = "Name to farewell" },
+        },
+        required = { "name" },
+      },
+      run = function(args)
+        return "Goodbye, " .. args.name
+      end,
+    },
   }
 }
 ```
 
-### Format 2: Action-Based Tool
+### Format 2: Single Tool
 
-For tools with multiple related actions, define a single `input_schema` with an `action` enum and route manually in your `run` function:
+For plugins that expose exactly one tool:
+
+```lua
+-- lua/my-plugin/buddy.lua
+return {
+  name = "my_tool",
+  description = "Does something useful",
+  input_schema = {
+    type = "object",
+    properties = {
+      message = { type = "string", description = "Message to show" },
+    },
+    required = {},
+  },
+  run = function(args)
+    vim.notify(args.message or "hello")
+    return { success = true }
+  end,
+}
+```
+
+### Multi-Action Tools
+
+For tools with multiple related actions, define an `action` enum in your `input_schema` and route manually in your `run` function:
 
 ```lua
 -- lua/buddy_viz/buddy.lua
@@ -92,7 +137,10 @@ return {
 }
 ```
 
-This pattern keeps all action logic in one file with explicit routing via if/elseif
+This pattern keeps all action logic in one file with explicit routing via if/elseif. All built-in buddy.nvim tools use this pattern.
+
+!!! warning "No auto-generated routing"
+    There is no auto-generated action routing or schema merging. You define the `action` enum, its `input_schema`, and the routing logic yourself. This keeps things explicit and debuggable.
 
 ## Parameter Types
 
@@ -154,13 +202,79 @@ return {
 
 Now your tool:
 
-- ✅ Works via MCP when AI calls `my_tool`
-- ✅ Works via `<leader>mt` keymap
-- ✅ Works via `:MyTool` command
-- ✅ Runs on `BufEnter` for markdown files
+- Works via MCP when AI calls `my_tool`
+- Works via `<leader>mt` keymap
+- Works via `:MyTool` command
+- Runs on `BufEnter` for markdown files
 
 !!! tip "Hot Reload"
     Edit the file, keymaps and commands update automatically. No restart needed.
+
+## Returning Results
+
+Tools return **raw Lua values** from `run()`. buddy.nvim automatically wraps
+them into MCP-compatible responses. You do **not** return MCP envelope objects
+(like `{ content = { ... } }`) directly.
+
+### String Results
+
+Returned as-is in a text content block:
+
+```lua
+return "Hello, world!"
+-- MCP response: { content = [{ type = "text", text = "Hello, world!" }] }
+```
+
+### Table Results
+
+JSON-encoded into a text content block:
+
+```lua
+return { success = true, data = "result" }
+-- MCP response: { content = [{ type = "text", text = "{\"success\":true,\"data\":\"result\"}" }] }
+```
+
+### Nil Results
+
+Returned as the string `"nil"`:
+
+```lua
+return nil
+-- MCP response: { content = [{ type = "text", text = "nil" }] }
+```
+
+### Structured Output (with output_schema)
+
+If your tool defines `output_schema`, the table result is also included as
+`structuredContent` in the MCP response:
+
+```lua
+return {
+  name = "my_tool",
+  output_schema = { type = "object", properties = { count = { type = "number" } } },
+  run = function(args)
+    return { count = 42 }
+    -- MCP response: { content = [...], structuredContent = { count = 42 } }
+  end,
+}
+```
+
+!!! warning "Common Mistake"
+    Don't return MCP envelopes like `{ content = { { type = "text", text = "..." } } }` from your tool's `run()` function. buddy.nvim wraps results for you automatically. If you return an envelope, it will be double-wrapped.
+
+### Errors
+
+To signal a tool error, use `error()` or the structured error API:
+
+```lua
+local errors = require("buddy.tools.errors")
+
+-- Option 1: Simple error (becomes isError MCP response)
+error("Something went wrong")
+
+-- Option 2: Structured error with code
+errors.throw(errors.codes.EXECUTION_ERROR, "Something went wrong", { detail = "..." })
+```
 
 ## Async Tools
 
@@ -214,69 +328,6 @@ end
     `tools/call` are immediately cancelled and an error response is returned.
     Async tools are intended for use via the callback-based `execute()` or
     `execute_async()` APIs.
-
-## Returning Results
-
-Tools return **raw Lua values** from `run()`. buddy.nvim automatically wraps
-them into MCP-compatible responses — you do **not** return MCP envelope objects
-(like `{ content = { ... } }`) directly.
-
-### String Results
-
-Returned as-is in a text content block:
-
-```lua
-return "Hello, world!"
--- → MCP response: { content = [{ type = "text", text = "Hello, world!" }] }
-```
-
-### Table Results
-
-JSON-encoded into a text content block:
-
-```lua
-return { success = true, data = "result" }
--- → MCP response: { content = [{ type = "text", text = "{\"success\":true,\"data\":\"result\"}" }] }
-```
-
-### Nil Results
-
-Returned as the string `"nil"`:
-
-```lua
-return nil
--- → MCP response: { content = [{ type = "text", text = "nil" }] }
-```
-
-### Structured Output (with output_schema)
-
-If your tool defines `output_schema`, the table result is also included as
-`structuredContent` in the MCP response:
-
-```lua
-return {
-  name = "my_tool",
-  output_schema = { type = "object", properties = { count = { type = "number" } } },
-  run = function(args)
-    return { count = 42 }
-    -- → MCP response: { content = [...], structuredContent = { count = 42 } }
-  end,
-}
-```
-
-### Errors
-
-To signal a tool error, use `error()` or the structured error API:
-
-```lua
-local errors = require("buddy.tools.errors")
-
--- Option 1: Simple error (becomes isError MCP response)
-error("Something went wrong")
-
--- Option 2: Structured error with code
-errors.throw(errors.codes.EXECUTION_ERROR, "Something went wrong", { detail = "..." })
-```
 
 ## Testing Tools
 

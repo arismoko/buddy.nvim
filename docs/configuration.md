@@ -3,12 +3,12 @@
 ## Setup Options
 
 ```lua
-local buddy = require("buddy")
-
-buddy.setup({
+require("buddy").setup({
   host = "127.0.0.1",   -- Bind address (default: "127.0.0.1" for security)
   port = 7234,          -- Server port (default: 7234)
   auto_start = false,   -- Start on VimEnter (default: false)
+  auth = true,          -- Bearer token auth on HTTP endpoints (default: true)
+  watch = true,         -- Hot reload file watching (default: true)
   log_level = "info",   -- Log level: "debug", "info", "warn", "error" (default: "info")
   tools = {
     disabled = {},      -- List of tool names to disable (e.g., {"grep", "diagnostics"})
@@ -26,6 +26,8 @@ buddy.setup({
 | `host` | string | `"127.0.0.1"` | Server bind address |
 | `port` | number | `7234` | Server port |
 | `auto_start` | boolean | `false` | Auto-start server on VimEnter |
+| `auth` | boolean | `true` | Enable Bearer token auth on HTTP endpoints |
+| `watch` | boolean | `true` | Enable hot reload file watching |
 | `log_level` | string | `"info"` | Log level: `"debug"`, `"info"`, `"warn"`, `"error"` |
 | `tools.disabled` | string[] | `{}` | List of built-in tool names to disable |
 | `buffer.ignored_filetypes` | string[] | `{}` | Filetypes to exclude from buffer listings |
@@ -65,6 +67,8 @@ Note: Tools from companion plugins (like `buddy_manager`, `viz`, `dotfyle_search
 
 By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only local processes can connect.
 
+When `auth` is enabled (default), the server generates a random Bearer token on startup. The proxy (`buddy-mcp-proxy`) reads this token automatically from the session registry. Direct SSE connections also pass the token via the session registry.
+
 !!! warning "Exposing on LAN"
     To expose on LAN (e.g., for remote AI clients):
 
@@ -74,7 +78,7 @@ By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only lo
     })
     ```
 
-    **Warning**: There is no authentication or TLS. If you bind to `0.0.0.0`, anyone on your network can control your editor. Consider:
+    **Warning**: Even with `auth = true`, there is no TLS. If you bind to `0.0.0.0`, consider:
 
     - Using a firewall to restrict access
     - SSH tunneling for remote access
@@ -98,6 +102,9 @@ buddy.restart()
 local status = buddy.status()
 -- { running = true, port = 7234 }
 
+-- Call a tool programmatically
+local result = buddy.call("buffer", { action = "list" })
+
 -- Register a tool programmatically
 buddy.register_tool({
   name = "my_tool",
@@ -105,9 +112,6 @@ buddy.register_tool({
   input_schema = { type = "object", properties = {} },
   run = function(args) return { success = true } end,
 })
-
--- Call a tool programmatically
-local result = buddy.call("my_tool", { some_arg = "value" })
 ```
 
 ## Troubleshooting
