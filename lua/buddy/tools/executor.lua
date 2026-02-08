@@ -178,15 +178,17 @@ function M.execute_async(tool_id, args, opts)
   local exec_ok, sync_result_or_err, task_id = pcall(M.execute, tool_id, args, exec_opts)
 
   if not exec_ok then
-    -- Synchronous throw: resolve future with error instead of propagating
+    -- Synchronous throw: resolve future with error instead of propagating.
+    -- Preserve structured error tables (from errors.throw) rather than stringifying.
     if not future.is_set() then
-      future.set({ error = tostring(sync_result_or_err) })
+      future.set({ error = sync_result_or_err })
     end
     return future, nil
   end
 
-  -- If tool completed synchronously, resolve the future immediately
-  if sync_result_or_err ~= nil and not future.is_set() then
+  -- If tool completed synchronously (task_id is nil), resolve the future.
+  -- Check task_id rather than result value because sync tools may legitimately return nil.
+  if task_id == nil and not future.is_set() then
     future.set({ result = sync_result_or_err })
   end
 
