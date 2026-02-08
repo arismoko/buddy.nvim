@@ -73,4 +73,73 @@ T['execute()']['validates legacy args schema'] = function()
   MiniTest.expect.equality(result.success, true)
 end
 
+T['execute()']['runs sync tool and returns result'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'sync-tool',
+    description = 'Sync tool',
+    run = function(args)
+      return { value = args.x or 42 }
+    end,
+  })
+
+  local result, task_id = executor.execute('sync-tool', { x = 99 })
+  MiniTest.expect.equality(result.value, 99)
+  MiniTest.expect.equality(task_id, nil)
+end
+
+T['execute()']['throws on unknown tool'] = function()
+  local executor = get_executor()
+  local tools = get_tools()
+  tools.clear()
+
+  MiniTest.expect.error(function()
+    executor.execute('nonexistent', {})
+  end)
+end
+
+T['execute()']['passes on_progress to context'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local progress_calls = {}
+
+  tools.register({
+    name = 'progress-exec-tool',
+    description = 'Tool with progress',
+    run = function(_, context)
+      if context.on_progress then
+        context.on_progress(1, 10, 'working')
+      end
+      return 'done'
+    end,
+  })
+
+  local result = executor.execute('progress-exec-tool', {}, {
+    on_progress = function(p, t, m)
+      table.insert(progress_calls, { p = p, t = t, m = m })
+    end,
+  })
+
+  MiniTest.expect.equality(result, 'done')
+  MiniTest.expect.equality(#progress_calls, 1)
+  MiniTest.expect.equality(progress_calls[1].p, 1)
+  MiniTest.expect.equality(progress_calls[1].m, 'working')
+end
+
+T['cancel()'] = MiniTest.new_set()
+
+T['cancel()']['returns false for nonexistent task'] = function()
+  local executor = get_executor()
+  MiniTest.expect.equality(executor.cancel('999'), false)
+end
+
+T['list_running()'] = MiniTest.new_set()
+
+T['list_running()']['returns empty list initially'] = function()
+  local executor = get_executor()
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 return T

@@ -170,8 +170,14 @@ function HTTPServer:_handle_connection(client)
     end
 
     if not chunk then
-      -- Connection closed - remove from tracking and close handle
+      -- Connection closed - remove from tracking
       remove_connection()
+      -- Notify hub of client disconnect (cleans up SSE session if this was one)
+      local hub_ok, SSEHub = pcall(require, "buddy.transport.sse.hub")
+      if hub_ok then
+        local hub = SSEHub.get_instance()
+        hub:close_by_client(client)
+      end
       if not client:is_closing() then
         client:close()
       end
@@ -298,7 +304,14 @@ end
 function HTTPServer:stop()
   self.running = false
 
-  -- Close all connections
+  -- Close all SSE sessions through Hub for deterministic cleanup
+  local hub_ok, SSEHub = pcall(require, "buddy.transport.sse.hub")
+  if hub_ok then
+    local hub = SSEHub.get_instance()
+    hub:close_all()
+  end
+
+  -- Close all TCP connections
   for _, client in ipairs(self.connections) do
     if not client:is_closing() then
       client:close()
@@ -306,13 +319,10 @@ function HTTPServer:stop()
   end
   self.connections = {}
 
-  -- Close SSE connections
-  for _session_id, sse_conn in pairs(self.sse_connections) do
-    sse_conn:close()
-  end
+  -- Clear any remaining SSE connection refs (hub:close_all should handle these)
   self.sse_connections = {}
 
-  -- Close server
+  -- Close server socket
   if self.server and not self.server:is_closing() then
     self.server:close()
   end

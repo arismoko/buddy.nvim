@@ -1,6 +1,20 @@
 local M = {}
 local tools = {}  -- name -> tool definition
 
+--- Publish tools_changed event via event bus (if runtime available)
+--- Falls back to legacy methods.notify_tools_changed() for backward compatibility
+local function _notify_tools_changed()
+  local ok, buddy = pcall(require, "buddy")
+  if ok and buddy._runtime then
+    buddy._runtime.event_bus:publish("tools_changed", {})
+  end
+  -- Always call legacy path for backward compat (methods.lua will bridge)
+  local methods_ok, methods = pcall(require, "buddy.mcp.methods")
+  if methods_ok and methods.notify_tools_changed then
+    methods.notify_tools_changed()
+  end
+end
+
 function M.register(tool)
   -- Validate tool has required fields: name, description, run
   if not tool or not tool.name or not tool.description then
@@ -11,11 +25,7 @@ function M.register(tool)
   local key = tool.id or tool.name
   tools[key] = tool
 
-  -- Notify that tools have changed
-  local methods = require("buddy.mcp.methods")
-  if methods.notify_tools_changed then
-    methods.notify_tools_changed()
-  end
+  _notify_tools_changed()
 end
 
 function M.get(name)
@@ -34,11 +44,7 @@ end
 
 function M.clear()
   tools = {}
-  -- Notify that tools have changed
-  local methods = require("buddy.mcp.methods")
-  if methods.notify_tools_changed then
-    methods.notify_tools_changed()
-  end
+  _notify_tools_changed()
 end
 
 --- Clear only runtimepath tools (tool packs from plugins)
@@ -54,11 +60,7 @@ function M.clear_runtimepath_tools()
   end
 
   if #to_remove > 0 then
-    -- Notify that tools have changed
-    local methods = require("buddy.mcp.methods")
-    if methods.notify_tools_changed then
-      methods.notify_tools_changed()
-    end
+    _notify_tools_changed()
   end
 end
 
@@ -76,11 +78,7 @@ function M.clear_by_source(source)
   end
 
   if #to_remove > 0 then
-    -- Notify that tools have changed
-    local methods = require("buddy.mcp.methods")
-    if methods.notify_tools_changed then
-      methods.notify_tools_changed()
-    end
+    _notify_tools_changed()
   end
 end
 
