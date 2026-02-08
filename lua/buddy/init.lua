@@ -137,12 +137,18 @@ function M.start()
   end
 
   -- Set auth token on router before starting server so it's ready for first connection
-  local router = require("buddy.server.router")
+  local router = require("buddy.transport.router")
   router.set_auth_token(auth_token)
 
   local actual_port = server.start(cfg.host, cfg.port)
   M._server = server.get()
   M._actual_port = actual_port
+
+  -- Wire cross-cutting services (notifier, tool service) deterministically at startup
+  local SSEHub = require("buddy.transport.sse.hub")
+  local hub = SSEHub.get_instance(M._server)
+  local lifecycle = require("buddy.app.lifecycle")
+  lifecycle.start_wiring(hub)
 
   -- Register this session for multi-session support (use actual bound port)
   local sessions = require("buddy.sessions")
@@ -186,22 +192,16 @@ function M.stop()
     SSEHub.reset()
   end
 
-  -- Reset router wiring (notifier, ToolService) so restart gets fresh closures
-  local router_ok, router = pcall(require, "buddy.server.router")
+  -- Reset application lifecycle (notifier, tool service, client requests, methods callback)
+  local lifecycle_ok, lifecycle = pcall(require, "buddy.app.lifecycle")
+  if lifecycle_ok then
+    lifecycle.reset_wiring()
+  end
+
+  -- Reset transport router state
+  local router_ok, router = pcall(require, "buddy.transport.router")
   if router_ok then
     router._reset()
-  end
-
-  -- Reset client_requests singleton so restart doesn't use stale Hub references
-  local cr_ok, cr = pcall(require, "buddy.mcp.client_requests")
-  if cr_ok and cr._reset then
-    cr._reset()
-  end
-
-  -- Clear stale notify callback so restart doesn't use old Hub references
-  local methods_ok, methods = pcall(require, "buddy.mcp.methods")
-  if methods_ok then
-    methods.set_notify_callback(nil)
   end
 
   require("buddy.tools").clear()
