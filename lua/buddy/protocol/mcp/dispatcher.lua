@@ -2,6 +2,7 @@
 --- Validates JSON-RPC envelope, looks up handler in registry, calls it
 local jsonrpc = require("buddy.protocol.jsonrpc")
 local registry = require("buddy.protocol.mcp.registry")
+local errors = require("buddy.protocol.mcp.errors")
 
 local M = {}
 
@@ -29,7 +30,7 @@ function M.handle_request(session_id, request)
   local valid, err = jsonrpc.validate_request(request)
   if not valid then
     if request.id then
-      return jsonrpc.error(request.id, -32600, "Invalid Request", err)
+      return jsonrpc.error(request.id, errors.INVALID_REQUEST, "Invalid Request", err)
     end
     return nil
   end
@@ -42,7 +43,7 @@ function M.handle_request(session_id, request)
     if is_notification then
       return nil
     end
-    return jsonrpc.error(request.id, -32601, "Method not found", "Unknown method: " .. request.method)
+    return jsonrpc.error(request.id, errors.METHOD_NOT_FOUND, "Method not found", "Unknown method: " .. request.method)
   end
 
   local ok, result = pcall(handler, session_id, request.params or {}, request.id)
@@ -51,7 +52,7 @@ function M.handle_request(session_id, request)
     if is_notification then
       return nil
     end
-    return jsonrpc.error(request.id, -32603, "Internal error", tostring(result))
+    return jsonrpc.error(request.id, errors.INTERNAL_ERROR, "Internal error", tostring(result))
   end
 
   if is_notification then

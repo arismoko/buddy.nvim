@@ -3,7 +3,7 @@ local T = MiniTest.new_set()
 T['hooks'] = {
   pre_case = function()
     -- Fresh module state for each test
-    package.loaded['buddy.server.router'] = nil
+    package.loaded['buddy.transport.router'] = nil
     package.loaded['buddy.config'] = nil
   end
 }
@@ -40,7 +40,7 @@ local function make_request(method, path, auth_header)
 end
 
 T['auth']['rejects request without token when auth is enabled'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('test-secret-token')
 
   local mock = make_mock_server()
@@ -53,7 +53,7 @@ T['auth']['rejects request without token when auth is enabled'] = function()
 end
 
 T['auth']['rejects request with wrong token'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('correct-token')
 
   local mock = make_mock_server()
@@ -66,7 +66,7 @@ T['auth']['rejects request with wrong token'] = function()
 end
 
 T['auth']['allows /health without token'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('secret-token')
 
   local mock = make_mock_server()
@@ -80,7 +80,7 @@ T['auth']['allows /health without token'] = function()
 end
 
 T['auth']['allows request with correct token'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('my-secret')
 
   local mock = make_mock_server()
@@ -94,7 +94,7 @@ T['auth']['allows request with correct token'] = function()
 end
 
 T['auth']['allows all requests when auth is disabled (nil token)'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token(nil)
 
   local mock = make_mock_server()
@@ -108,7 +108,7 @@ T['auth']['allows all requests when auth is disabled (nil token)'] = function()
 end
 
 T['auth']['returns 401 for SSE endpoint without token'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('sse-token')
 
   local mock = make_mock_server()
@@ -121,7 +121,7 @@ T['auth']['returns 401 for SSE endpoint without token'] = function()
 end
 
 T['auth']['returns 401 for POST /message without token'] = function()
-  local router = require('buddy.server.router')
+  local router = require('buddy.transport.router')
   router.set_auth_token('msg-token')
 
   local mock = make_mock_server()

@@ -100,7 +100,7 @@ function SSEHub:_cleanup_session_stores(session_id)
   end
 
   -- Client requests (pending server→client requests)
-  local cr_ok, client_requests = pcall(require, "buddy.mcp.client_requests")
+  local cr_ok, client_requests = pcall(require, "buddy.app.client_requests")
   if cr_ok and client_requests.cleanup_session then
     client_requests.cleanup_session(session_id)
   end

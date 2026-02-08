@@ -2,16 +2,10 @@ local M = {}
 local tools = {}  -- name -> tool definition
 
 --- Publish tools_changed event via event bus (if runtime available)
---- Falls back to legacy methods.notify_tools_changed() for backward compatibility
 local function _notify_tools_changed()
   local ok, buddy = pcall(require, "buddy")
   if ok and buddy._runtime then
     buddy._runtime.event_bus:publish("tools_changed", {})
-  end
-  -- Always call legacy path for backward compat (methods.lua will bridge)
-  local methods_ok, methods = pcall(require, "buddy.mcp.methods")
-  if methods_ok and methods.notify_tools_changed then
-    methods.notify_tools_changed()
   end
 end
 

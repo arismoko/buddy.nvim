@@ -13,7 +13,7 @@ local M = {}
 ---@return string|nil error
 function M.create(session_id, params)
   local session_state = require("buddy.mcp.session_state")
-  local client_requests = require("buddy.mcp.client_requests")
+  local client_requests = require("buddy.app.client_requests")
   
   if not session_state.has_capability(session_id, "elicitation") then
     return nil, "Client does not support elicitation capability"
