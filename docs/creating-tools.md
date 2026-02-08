@@ -164,7 +164,8 @@ Now your tool:
 
 ## Async Tools
 
-For long-running operations, return a cancel function and use the callback:
+For long-running operations, either return a cancel function or explicitly
+declare async mode with `context.start_async()`:
 
 ```lua
 run = function(args, context)
@@ -176,6 +177,18 @@ run = function(args, context)
   return function()
     handle:cancel()
   end
+end
+```
+
+For non-cancellable async work, call `context.start_async()` before returning:
+
+```lua
+run = function(args, context)
+  context.start_async()
+  start_async_operation(function(result)
+    context(result)
+  end)
+  return nil
 end
 ```
 

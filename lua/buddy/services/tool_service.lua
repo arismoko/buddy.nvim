@@ -74,6 +74,7 @@ function ToolService:call(session_id, params, request_id)
 
   -- Build executor options with context (no callback — sync dispatch path).
   -- Async tools are detected by executor via cancel-function return value
+  -- or explicit context.start_async() declaration.
   -- and are tracked for cancellation, but results are not delivered here.
   --
   -- NOTE (known limitation): Async tool outputs are dropped in the MCP tools/call

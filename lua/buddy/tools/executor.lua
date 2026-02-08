@@ -91,10 +91,26 @@ function M.execute(tool_id, args, opts)
     end
   end
 
+  local async_declared = false
+
   -- Make progress callback available to tool run function
   local context = {
     on_progress = on_progress,
     session_id = opts.session_id,
+    -- Explicitly mark a tool as async even if run() returns nil.
+    -- Optional cancel_fn allows non-cancellable async tools to still declare async.
+    start_async = function(cancel_fn)
+      if cancel_fn ~= nil and type(cancel_fn) ~= "function" then
+        error("context.start_async(cancel_fn) expects function or nil")
+      end
+      async_declared = true
+      if type(cancel_fn) == "function" then
+        local task = running_tasks[task_id]
+        if task then
+          task.cancel_fn = cancel_fn
+        end
+      end
+    end,
   }
 
   -- Add elicitation capability if session_id is available
@@ -175,6 +191,18 @@ function M.execute(tool_id, args, opts)
       -- Task was already completed synchronously inside run() via context().
       -- The placeholder was cleaned up by async_callback or context __call.
       log.debug("Tool %s completed synchronously inside run() (task %s)", tool_id, task_id)
+    end
+    return nil, task_id
+  end
+
+  -- Async tool explicitly declared via context.start_async().
+  if async_declared then
+    local task = running_tasks[task_id]
+    if task then
+      log.debug("Tool %s declared async (task %s)", tool_id, task_id)
+    else
+      -- Task already completed synchronously inside run() via context().
+      log.debug("Tool %s declared async and completed inside run() (task %s)", tool_id, task_id)
     end
     return nil, task_id
   end

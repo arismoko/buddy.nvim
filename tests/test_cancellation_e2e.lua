@@ -219,6 +219,75 @@ T['executor']['sync tool returning nil is not classified as async'] = function()
   MiniTest.expect.equality(executor.list_running(), {})
 end
 
+T['executor']['declared non-cancellable async tool delivers late result'] = function()
+  local executor = require("buddy.tools.executor")
+  executor._reset()
+
+  local tools = require("buddy.tools")
+  local complete_fn
+  tools.register({
+    name = "_test_declared_async_nil",
+    description = "Declared async tool without cancel fn",
+    args = {},
+    run = function(_args, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return nil
+    end,
+  })
+
+  local callback_count = 0
+  local callback_err
+  local callback_result
+  local _, task_id = executor.execute("_test_declared_async_nil", {}, {
+    callback = function(err, result)
+      callback_count = callback_count + 1
+      callback_err = err
+      callback_result = result
+    end,
+  })
+
+  MiniTest.expect.equality(type(task_id), "string")
+  MiniTest.expect.equality(callback_count, 0)
+
+  complete_fn({ done = true })
+
+  MiniTest.expect.equality(callback_count, 1)
+  MiniTest.expect.equality(callback_err, nil)
+  MiniTest.expect.equality(callback_result, { done = true })
+  MiniTest.expect.equality(executor.list_running(), {})
+end
+
+T['executor']['execute_async waits for declared non-cancellable async tool'] = function()
+  local executor = require("buddy.tools.executor")
+  executor._reset()
+
+  local tools = require("buddy.tools")
+  local complete_fn
+  tools.register({
+    name = "_test_execute_async_declared_nil",
+    description = "execute_async declared async without cancel fn",
+    args = {},
+    run = function(_args, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return nil
+    end,
+  })
+
+  local future, task_id = executor.execute_async("_test_execute_async_declared_nil", {})
+  MiniTest.expect.equality(type(task_id), "string")
+  MiniTest.expect.equality(not future.is_set(), true)
+
+  complete_fn({ done = true })
+
+  MiniTest.expect.equality(future.is_set(), true)
+  local packed = future.wait()
+  MiniTest.expect.equality(packed.error, nil)
+  MiniTest.expect.equality(packed.result, { done = true })
+  MiniTest.expect.equality(executor.list_running(), {})
+end
+
 T['executor']['cancel-then-complete race does not invoke callback twice'] = function()
   local executor = require("buddy.tools.executor")
   executor._reset()
