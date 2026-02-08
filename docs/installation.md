@@ -4,6 +4,7 @@
 
 - **Neovim 0.10+**
 - **mini.nvim** (dependency)
+- **nvim-nio** (dependency — async operations)
 
 ## Plugin Managers
 
@@ -14,6 +15,7 @@
       "arismoko/buddy.nvim",
       dependencies = {
         "echasnovski/mini.nvim",
+        "nvim-neotest/nvim-nio",
         -- Optional: Companion plugins
         -- { "arismoko/buddy_core.nvim" }, -- Core tools (buddy_manager, dotfyle, lazy)
         -- { "arismoko/buddy_viz.nvim" },  -- Visualization tools (charts, images)
@@ -33,7 +35,10 @@
     ```lua
     use {
       "arismoko/buddy.nvim",
-      requires = { "echasnovski/mini.nvim" },
+      requires = {
+        "echasnovski/mini.nvim",
+        "nvim-neotest/nvim-nio",
+      },
       config = function()
         require("buddy").setup({
           auto_start = true,

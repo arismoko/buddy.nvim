@@ -12,6 +12,18 @@ M.check = function()
     vim.health.warn("Neovim version is old", "Upgrade to 0.10+ for full compatibility")
   end
 
+  -- Check nvim-nio dependency
+  local nio_ok = pcall(require, "nio")
+  if nio_ok then
+    vim.health.ok("nvim-nio found")
+  else
+    vim.health.error("nvim-nio not found", {
+      "Install nvim-nio with your plugin manager:",
+      '  lazy.nvim: { "nvim-neotest/nvim-nio" }',
+      "  rocks.nvim: :Rocks install nvim-nio",
+    })
+  end
+
   -- Check configuration
   local ok, config = pcall(require, "buddy.config")
   if not ok then
