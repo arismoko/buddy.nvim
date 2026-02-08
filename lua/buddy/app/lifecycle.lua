@@ -8,6 +8,7 @@ local M = {}
 
 -- Whether services have been wired (once per server lifetime)
 local _wired = false
+local _unsubscribes = {}
 
 --- Wire all cross-cutting services for the server lifetime.
 --- Must be called once during server startup (not per-session).
@@ -34,9 +35,10 @@ function M.start_wiring(hub)
   local runtime = buddy.runtime()
 
   -- Subscribe to tools_changed events and broadcast via notifier
-  runtime.event_bus:subscribe("tools_changed", function()
+  local unsub = runtime.event_bus:subscribe("tools_changed", function()
     notifier:broadcast("notifications/tools/list_changed")
   end)
+  table.insert(_unsubscribes, unsub)
 
   -- Wire ToolService singleton with notifier and request_store for cancellation
   local ToolService = require("buddy.services.tool_service")
@@ -66,6 +68,15 @@ function M.reset_wiring()
   if cr_ok and cr._reset then
     cr._reset()
   end
+
+  -- Unsubscribe event bus listeners (pcall to ensure full cleanup on errors)
+  for _, unsub in ipairs(_unsubscribes) do
+    local ok, err = pcall(unsub)
+    if not ok then
+      log.warn("Lifecycle: unsub failed: %s", tostring(err))
+    end
+  end
+  _unsubscribes = {}
 
   _wired = false
   log.debug("Lifecycle: services reset")

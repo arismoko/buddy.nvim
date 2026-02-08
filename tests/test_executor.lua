@@ -4,6 +4,8 @@ T['hooks'] = {
   pre_case = function()
     package.loaded['buddy.tools'] = nil
     package.loaded['buddy.tools.executor'] = nil
+    -- Force a fresh executor load and reset running_tasks
+    require('buddy.tools.executor')._reset()
   end
 }
 

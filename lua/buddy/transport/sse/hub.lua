@@ -108,6 +108,21 @@ function SSEHub:_cleanup_session_stores(session_id)
   -- Runtime stores (if runtime exists)
   local ok, buddy = pcall(require, "buddy")
   if ok and buddy._runtime then
+    -- Cancel any running tool tasks for this session before removing bindings
+    local task_ids = buddy._runtime.request_store:get_tool_tasks_for_session(session_id)
+    if #task_ids > 0 then
+      local ts_ok, ToolService = pcall(require, "buddy.services.tool_service")
+      if ts_ok then
+        local service = ToolService.get_instance()
+        if service then
+          for _, task_id in ipairs(task_ids) do
+            service:cancel(task_id)
+            log.debug("Hub: cancelled task %s for disconnected session %s", task_id, session_id)
+          end
+        end
+      end
+    end
+
     buddy._runtime.session_store:cleanup(session_id)
     buddy._runtime.request_store:cleanup_by_session(session_id)
   end
