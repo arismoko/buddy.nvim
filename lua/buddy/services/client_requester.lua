@@ -36,6 +36,9 @@ function ClientRequester:_generate_id()
   return id
 end
 
+--- Sentinel returned by timeout branch of nio.first race
+local _TIMEOUT = {}
+
 --- Send a request to client and await response (async, must be called in nio coroutine)
 ---@param session_id string
 ---@param method string
@@ -44,6 +47,11 @@ end
 ---@return any result
 ---@return string|table|nil error
 function ClientRequester:request(session_id, method, params, timeout_ms)
+  -- Guard: must be called inside a nio coroutine
+  if not coroutine.running() then
+    return nil, "request() must be called inside a nio coroutine; use request_sync() from non-async context"
+  end
+
   timeout_ms = timeout_ms or 30000
 
   local id = self:_generate_id()
@@ -56,7 +64,7 @@ function ClientRequester:request(session_id, method, params, timeout_ms)
     cancelled = false,
   }
 
-  -- Send request via injected transport
+  -- Send request via injected transport (pcall to prevent leak on throw)
   local rpc_msg = {
     jsonrpc = "2.0",
     id = id,
@@ -64,35 +72,36 @@ function ClientRequester:request(session_id, method, params, timeout_ms)
     params = params or {},
   }
 
-  local ok = self._send_fn(session_id, rpc_msg)
-  if not ok then
+  local send_ok, send_result = pcall(self._send_fn, session_id, rpc_msg)
+  if not send_ok then
+    self:_cleanup(id)
+    return nil, "Send failed: " .. tostring(send_result)
+  end
+  if not send_result then
     self:_cleanup(id)
     return nil, "Failed to send request"
   end
 
-  -- Race: wait for response vs timeout
-  local timed_out = false
+  -- Race: wait for response vs timeout (tagged return, no mutable flags)
   local result = nio.first({
     -- Branch 1: wait for the response future
     function()
       return future.wait()
     end,
-    -- Branch 2: timeout
+    -- Branch 2: timeout — return sentinel to distinguish from nil response
     function()
       nio.sleep(timeout_ms)
-      timed_out = true
-      return nil
+      return _TIMEOUT
     end,
   })
 
   self:_cleanup(id)
 
-  if timed_out then
+  if result == _TIMEOUT then
     return nil, "Request timeout"
   end
 
-  -- future.wait() either returns {result=...} or {error=...}
-  -- (we pack response data in handle_response below)
+  -- future.wait() returns packed response: {value=...} or {_is_error=true, error=...}
   if result and result._is_error then
     return nil, result.error
   end
