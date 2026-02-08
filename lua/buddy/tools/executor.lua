@@ -197,6 +197,22 @@ function M.execute(tool_id, args, opts)
 
   -- Async tool explicitly declared via context.start_async().
   if async_declared then
+    -- Mixed-mode guard: if start_async() was called but run() returned a
+    -- non-nil, non-function value, that's a programming error — the tool is
+    -- confused about its sync/async contract. Clean up and throw.
+    if cancel_or_result ~= nil then
+      running_tasks[task_id] = nil
+      if opts.request_store and opts.session_id and opts.request_id then
+        opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
+      end
+      errors.throw(
+        errors.codes.EXECUTION_ERROR,
+        "Tool '" .. tool_id .. "' called context.start_async() but also returned a value; "
+          .. "async tools must return nil (got " .. type(cancel_or_result) .. ")",
+        { tool = tool_id }
+      )
+    end
+
     local task = running_tasks[task_id]
     if task then
       log.debug("Tool %s declared async (task %s)", tool_id, task_id)

@@ -75,12 +75,11 @@ function ToolService:call(session_id, params, request_id)
   -- Build executor options with context (no callback — sync dispatch path).
   -- Async tools are detected by executor via cancel-function return value
   -- or explicit context.start_async() declaration.
-  -- and are tracked for cancellation, but results are not delivered here.
   --
-  -- NOTE (known limitation): Async tool outputs are dropped in the MCP tools/call
-  -- sync dispatch path. The handler returns an explicit error response immediately.
-  -- Real async result delivery requires making the dispatch chain nio-aware,
-  -- which is deferred to a future PR. All built-in buddy.nvim tools are synchronous.
+  -- Sync tools/call explicitly rejects async tools: the async task is cancelled
+  -- immediately and an error response is returned. This prevents leaked async
+  -- tasks that have no callback to deliver results to.
+  -- All built-in buddy.nvim tools are synchronous.
   local exec_opts = {
     session_id = session_id,
     request_id = request_id,
@@ -101,12 +100,19 @@ function ToolService:call(session_id, params, request_id)
   -- Request→task binding is handled by executor (bound before tool.run(),
   -- unbound on completion/cancel/failure). No binding needed here.
 
-  -- Async tool: result is nil, task_id is set. Return an explicit error response
-  -- from sync tools/call so clients do not misinterpret this as final tool output.
+  -- Async tool: result is nil, task_id is set.
+  -- Cancel the leaked async task immediately so it doesn't dangle, then return
+  -- an explicit error response from sync tools/call so clients do not
+  -- misinterpret this as final tool output.
   if task_id then
+    self._executor.cancel(task_id)
+    -- Unbind request→task mapping (cancel doesn't have access to request_store)
+    if self._request_store and request_id then
+      self._request_store:unbind_tool_task(session_id, request_id)
+    end
     return errors.to_mcp_response(errors.create(
       errors.codes.EXECUTION_ERROR,
-      "Tool '" .. tool_name .. "' started asynchronously (task " .. task_id .. "), but sync tools/call does not support async results",
+      "Tool '" .. tool_name .. "' is async and cannot be invoked via sync tools/call (task " .. task_id .. " cancelled)",
       { tool = tool_name, task_id = task_id }
     ))
   end

@@ -144,4 +144,154 @@ T['list_running()']['returns empty list initially'] = function()
   MiniTest.expect.equality(#executor.list_running(), 0)
 end
 
+-- Async via cancel function return
+T['execute()']['async via cancel fn returns nil and task_id'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-cancel-tool',
+    description = 'Async tool with cancel fn',
+    run = function(_, _context)
+      return function() end  -- cancel function
+    end,
+  })
+
+  local result, task_id = executor.execute('async-cancel-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Task should be tracked
+  local running = executor.list_running()
+  MiniTest.expect.equality(#running, 1)
+  MiniTest.expect.equality(running[1].tool_id, 'async-cancel-tool')
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- Async via context.start_async()
+T['execute()']['async via start_async returns nil and task_id'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-start-tool',
+    description = 'Async tool with start_async',
+    run = function(_, context)
+      context.start_async()
+      return nil
+    end,
+  })
+
+  local result, task_id = executor.execute('async-start-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- Mixed-mode: start_async + non-nil return is an error
+T['execute()']['start_async with non-nil return throws'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-tool',
+    description = 'Mixed-mode tool (broken)',
+    run = function(_, context)
+      context.start_async()
+      return { result = "should not be here" }  -- non-nil, non-function
+    end,
+  })
+
+  MiniTest.expect.error(function()
+    executor.execute('mixed-mode-tool', {})
+  end)
+
+  -- Ensure no leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- start_async + function return uses cancel-fn branch precedence
+T['execute()']['start_async with function return uses cancel-fn precedence'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  -- Note: a function return is caught FIRST by the cancel-fn branch (line 184),
+  -- so start_async + function return works — the cancel-fn takes precedence.
+  -- This is the documented behavior: return function = async (cancel fn branch).
+  -- start_async is only checked when return is NOT a function.
+
+  tools.register({
+    name = 'start-async-fn-tool',
+    description = 'start_async + cancel fn',
+    run = function(_, context)
+      context.start_async()
+      return function() end
+    end,
+  })
+
+  -- This should NOT throw — cancel fn branch takes precedence
+  local result, task_id = executor.execute('start-async-fn-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- start_async with cancel_fn argument
+T['execute()']['start_async with cancel_fn arg registers it'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local cancel_called = false
+
+  tools.register({
+    name = 'async-cancel-arg-tool',
+    description = 'Async with cancel fn arg',
+    run = function(_, context)
+      context.start_async(function()
+        cancel_called = true
+      end)
+      return nil
+    end,
+  })
+
+  local _, task_id = executor.execute('async-cancel-arg-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Cancel should invoke the cancel fn
+  executor.cancel(task_id)
+  MiniTest.expect.equality(cancel_called, true)
+end
+
+-- start_async rejects non-function, non-nil argument
+T['execute()']['start_async rejects non-function argument'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'start-async-bad-arg',
+    description = 'start_async with bad arg',
+    run = function(_, context)
+      context.start_async("not a function")
+      return nil
+    end,
+  })
+
+  MiniTest.expect.error(function()
+    executor.execute('start-async-bad-arg', {})
+  end)
+end
+
 return T

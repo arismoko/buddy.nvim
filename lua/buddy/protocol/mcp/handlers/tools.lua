@@ -1,6 +1,7 @@
 --- MCP tools handlers: tools/list, tools/call
 local registry = require("buddy.protocol.mcp.registry")
 local tools = require("buddy.tools")
+local log = require("buddy.log")
 
 registry.register("tools/list", function(_session_id, params)
   local _ = params and params.cursor  -- Accept cursor param (unused - no pagination needed)
@@ -38,8 +39,11 @@ registry.register("tools/call", function(session_id, params, request_id)
   local ToolService = require("buddy.services.tool_service")
   local service = ToolService.get_instance()
 
-  -- Fallback: create an unwired instance if no singleton set (e.g., direct tests)
+  -- Fallback: create an unwired instance if no singleton set (e.g., direct tests).
+  -- WARNING: This fallback has no notifier, request_store, or client_requester,
+  -- so progress notifications, cancellation binding, and elicitation will not work.
   if not service then
+    log.debug("tools/call: no ToolService singleton set, using unwired fallback (test-only path)")
     service = ToolService.new()
   end
 

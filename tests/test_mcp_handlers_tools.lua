@@ -170,4 +170,23 @@ T['tools/call']['includes structuredContent for tools with output_schema'] = fun
   MiniTest.expect.equality(response.result.structuredContent.data, 'test')
 end
 
+T['tools/call']['rejects async tool with isError response'] = function()
+  local tools = require('buddy.tools')
+  local executor = require('buddy.tools.executor')
+  executor._reset()
+  tools.clear()
+  tools.register({
+    name = 'async-tool',
+    description = 'Async tool',
+    run = function(_, _context)
+      return function() end  -- cancel fn = async
+    end,
+  })
+
+  local response = mcp_request('s1', 7, 'tools/call', { name = 'async-tool' })
+  MiniTest.expect.equality(response.result.isError, true)
+  -- Task should not be leaked
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 return T

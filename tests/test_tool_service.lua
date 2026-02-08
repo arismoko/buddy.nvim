@@ -195,4 +195,44 @@ T['cancel()']['delegates to executor'] = function()
   MiniTest.expect.equality(ok, false)
 end
 
+T['call()']['rejects async tool via cancel fn with isError and cancels task'] = function()
+  local ToolService = require('buddy.services.tool_service')
+  local executor = require('buddy.tools.executor')
+  executor._reset()
+
+  setup_tool('async-cancel', function(_, _context)
+    return function() end  -- cancel function = async
+  end)
+
+  local svc = ToolService.new()
+  local result = svc:call('s1', { name = 'async-cancel' }, 1)
+
+  -- Should return error
+  MiniTest.expect.equality(result.isError, true)
+  MiniTest.expect.equality(type(result.content[1].text), 'string')
+
+  -- Async task should be cancelled (not leaked)
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+T['call()']['rejects async tool via start_async with isError and cancels task'] = function()
+  local ToolService = require('buddy.services.tool_service')
+  local executor = require('buddy.tools.executor')
+  executor._reset()
+
+  setup_tool('async-start', function(_, context)
+    context.start_async()
+    return nil
+  end)
+
+  local svc = ToolService.new()
+  local result = svc:call('s1', { name = 'async-start' }, 1)
+
+  -- Should return error
+  MiniTest.expect.equality(result.isError, true)
+
+  -- Async task should be cancelled (not leaked)
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 return T
