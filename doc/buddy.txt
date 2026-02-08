@@ -43,7 +43,10 @@ LAZY.NVIM ~
 >lua
     {
       "arismoko/buddy.nvim",
-      dependencies = { "echasnovski/mini.nvim" },
+      dependencies = {
+        "echasnovski/mini.nvim",
+        "nvim-neotest/nvim-nio",
+      },
       lazy = false,
       config = function()
         require("buddy").setup({
@@ -60,7 +63,10 @@ PACKER.NVIM ~
 >lua
     use {
       "arismoko/buddy.nvim",
-      requires = { "echasnovski/mini.nvim" },
+      requires = {
+        "echasnovski/mini.nvim",
+        "nvim-neotest/nvim-nio",
+      },
       config = function()
         require("buddy").setup({
           auto_start = true,
@@ -408,6 +414,7 @@ REQUIREMENTS                                   *buddy-buddy.nvim-requirements*
 
 - **Neovim 0.10+**
 - **mini.nvim** (dependency)
+- **nvim-nio** (dependency — async operations)
 
 ------------------------------------------------------------------------------
 
