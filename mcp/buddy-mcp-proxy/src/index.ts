@@ -615,7 +615,10 @@ async function main() {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     // Check downstream health before listing
     if (downstream.isConnected()) {
-      await downstream.checkHealth();
+      const healthy = await downstream.checkHealth();
+      if (!healthy) {
+        poller.ensure(); // Resume polling after health-check disconnect
+      }
     }
 
     const downstreamTools = downstream.getTools();
