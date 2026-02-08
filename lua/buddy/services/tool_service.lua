@@ -77,7 +77,7 @@ function ToolService:call(session_id, params, request_id)
   -- and are tracked for cancellation, but results are not delivered here.
   --
   -- NOTE (known limitation): Async tool outputs are dropped in the MCP tools/call
-  -- sync dispatch path. The handler returns an informational response immediately.
+  -- sync dispatch path. The handler returns an explicit error response immediately.
   -- Real async result delivery requires making the dispatch chain nio-aware,
   -- which is deferred to a future PR. All built-in buddy.nvim tools are synchronous.
   local exec_opts = {
@@ -100,17 +100,14 @@ function ToolService:call(session_id, params, request_id)
   -- Request→task binding is handled by executor (bound before tool.run(),
   -- unbound on completion/cancel/failure). No binding needed here.
 
-  -- Async tool: result is nil, task_id is set. Return informational (non-error)
-  -- response. The task is registered for cancellation via the binding above.
+  -- Async tool: result is nil, task_id is set. Return an explicit error response
+  -- from sync tools/call so clients do not misinterpret this as final tool output.
   if task_id then
-    return {
-      content = {
-        {
-          type = "text",
-          text = "Tool '" .. tool_name .. "' is executing asynchronously (task " .. task_id .. ")",
-        },
-      },
-    }
+    return errors.to_mcp_response(errors.create(
+      errors.codes.EXECUTION_ERROR,
+      "Tool '" .. tool_name .. "' started asynchronously (task " .. task_id .. "), but sync tools/call does not support async results",
+      { tool = tool_name, task_id = task_id }
+    ))
   end
 
   -- Sync tool completed — result_or_err is the actual result.

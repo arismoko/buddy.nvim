@@ -482,7 +482,7 @@ T['tool_service']['sync tool returning nil returns shaped result'] = function()
   MiniTest.expect.equality(response.content[1].text, "nil")
 end
 
-T['tool_service']['async tool returns non-error response'] = function()
+T['tool_service']['async tool returns error response in sync path'] = function()
   local tools = require("buddy.tools")
   tools.register({
     name = "_test_async_response",
@@ -497,12 +497,14 @@ T['tool_service']['async tool returns non-error response'] = function()
   local service = ToolService.new()
   local response = service:call("sess-1", { name = "_test_async_response" }, 400)
 
-  -- Should NOT have isError set
-  MiniTest.expect.equality(response.isError, nil)
-  -- Should have informational content
+  -- Should be an explicit error response to avoid false-success semantics
+  MiniTest.expect.equality(response.isError, true)
+  MiniTest.expect.equality(response.data.tool, "_test_async_response")
+  MiniTest.expect.equality(type(response.data.task_id), "string")
   MiniTest.expect.equality(response.content[1].type, "text")
-  -- Text should mention the tool name
   MiniTest.expect.equality(type(response.content[1].text), "string")
+  MiniTest.expect.equality(response.content[1].text:find("_test_async_response", 1, true) ~= nil, true)
+  MiniTest.expect.equality(response.content[1].text:find("sync tools/call does not support async results", 1, true) ~= nil, true)
 end
 
 return T
