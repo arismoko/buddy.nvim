@@ -4,7 +4,7 @@ MCP proxy server for buddy.nvim sessions. This proxy allows OpenCode (or any MCP
 
 ## How it works
 
-1. **Sessions Registry**: Reads buddy.nvim session info from `~/.local/state/buddy/sessions.json` (or `$XDG_STATE_HOME/buddy/sessions.json`)
+1. **Sessions Registry**: Reads buddy.nvim session info from `~/.local/state/nvim/buddy/sessions.json` (or `$XDG_STATE_HOME/nvim/buddy/sessions.json`)
 2. **Meta-tools**: Exposes tools to list, select, and manage sessions
 3. **Tool Proxying**: Once a session is selected, proxies all its tools to the MCP client
 
@@ -93,6 +93,7 @@ Recommended (buddy.nvim):
       "cwd": "/home/user/project-a",
       "label": "project-a",
       "pid": 12345,
+      "auth_token": "<random-bearer-token>",
       "started_at": 1730000000,
       "last_seen": 1730000030
     }

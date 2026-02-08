@@ -67,7 +67,7 @@ Note: Tools from companion plugins (like `buddy_manager`, `viz`, `dotfyle_search
 
 By default, buddy.nvim binds to `127.0.0.1` (localhost only). This means only local processes can connect.
 
-When `auth` is enabled (default), the server generates a random Bearer token on startup. The proxy (`buddy-mcp-proxy`) reads this token automatically from the session registry. Direct SSE connections also pass the token via the session registry.
+When `auth` is enabled (default), the server requires an `Authorization: Bearer <token>` header on HTTP/SSE requests. The proxy (`buddy-mcp-proxy`) reads the token from the session registry and injects it automatically. For direct URL connections, your MCP client must support custom auth headers (or you must disable auth in trusted local setups).
 
 !!! warning "Exposing on LAN"
     To expose on LAN (e.g., for remote AI clients):
@@ -109,8 +109,11 @@ local result = buddy.call("buffer", { action = "list" })
 buddy.register_tool({
   name = "my_tool",
   description = "Does something",
-  input_schema = { type = "object", properties = {} },
-  run = function(args) return { success = true } end,
+  args = {
+    param = { type = "string", description = "A parameter" },
+  },
+  required = { "param" },
+  run = function(args) return { success = true, param = args.param } end,
 })
 ```
 

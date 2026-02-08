@@ -10,14 +10,6 @@
 
 local plugin = require("TOOL_NAME")
 
-local function ok(text)
-  return { content = { { type = "text", text = text or "Success" } } }
-end
-
-local function err(message)
-  return { isError = true, content = { { type = "text", text = message } } }
-end
-
 return {
   name = "TOOL_NAME",
   -- title = "Human-Readable Tool Name",  -- Optional: display name for UI
@@ -36,9 +28,12 @@ return {
   },
   run = function(args)
     local result = plugin.run(args.input)
-    if result.error then
-      return err(result.error)
+    if type(result) == "table" and result.error then
+      error(result.error)
     end
-    return ok(result.message or result)
+    if type(result) == "table" and result.message then
+      return result.message
+    end
+    return result
   end,
 }

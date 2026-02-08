@@ -147,6 +147,10 @@ OPTION B: DIRECT SSE CONNECTION ~
 Connect directly to a specific Neovim instance by URL. Simpler, but you must
 know the port and can only connect to one session.
 
+⚠️ **Note**: With auth enabled (default), direct connections must send
+`Authorization: Bearer <token>`. If your MCP client cannot send auth headers,
+use `buddy-mcp-proxy`.
+
 
 OPENCODE
 
@@ -184,15 +188,15 @@ local processes can connect.
 **To expose on LAN** (e.g., for remote AI clients):
 
 >lua
-    require("nvim-buddy").setup({
+    require("buddy").setup({
       host = "0.0.0.0",  -- Listen on all interfaces
     })
 <
 
-⚠️ **Warning**: There is no authentication or TLS. If you bind to
-`0.0.0.0`, anyone on your network can control your editor. Consider: - Using a
-firewall to restrict access - SSH tunneling for remote access - Only enabling
-on trusted networks
+⚠️ **Note**: Bearer token authentication is enabled by default (`auth = true`),
+but there is no TLS. If you bind to `0.0.0.0`, the token is sent in plaintext.
+Consider: - Using a firewall to restrict access - SSH tunneling for remote
+access - Only enabling on trusted networks
 
 ------------------------------------------------------------------------------
 
@@ -219,11 +223,11 @@ BUILT-IN TOOLS                               *buddy-buddy.nvim-built-in-tools*
 
 CREATING TOOLS                               *buddy-buddy.nvim-creating-tools*
 
-Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. nvim-buddy
+Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. buddy
 discovers these automatically.
 
 
-FORMAT 1: SIMPLE TOOLS LIST ~
+FORMAT 1: TOOLS LIST ~
 
 For plugins with one or more independent tools:
 
@@ -242,7 +246,7 @@ For plugins with one or more independent tools:
             required = { "name" },
           },
           run = function(args)
-            return { content = { { type = "text", text = "Hello, " .. args.name } } }
+            return "Hello, " .. args.name
           end,
         },
       }
@@ -250,50 +254,36 @@ For plugins with one or more independent tools:
 <
 
 
-FORMAT 2: ACTION-BASED TOOL (RECOMMENDED FOR MULTI-ACTION TOOLS) ~
+FORMAT 2: SINGLE TOOL ~
 
-For tools with multiple related actions, use the action-based pattern:
+For plugins that expose exactly one tool:
 
 >lua
-    -- lua/viz/buddy.lua
     return {
-      name = "viz",
-      description = "Visualization tool for images, charts, and diagrams",
-      actions = {
-        image = require("viz.tools.image"),
-        chart = require("viz.tools.chart"),
-      },
-    }
-    
-    -- lua/viz/tools/image.lua
-    return {
-      description = "Display a local image",
+      name = "my_tool",
+      description = "Does something",
       input_schema = {
         type = "object",
         properties = {
-          path = { type = "string", description = "Path to image file" },
+          message = { type = "string", description = "Message to show" },
         },
-        required = { "path" },
+        required = {},
       },
       run = function(args)
-        -- implementation
+        vim.notify(args.message or "hello")
+        return { success = true }
       end,
     }
 <
 
-The framework auto-generates: - Unified input_schema from all actions - Action
-enum with descriptions (e.g., `"image: Display a local image, chart: Generate
-charts"`) - Routing to the correct action handler - Per-action validation with
-helpful error messages
-
 
 TOOL FORMAT ~
 
-Individual tools (or actions) use this format:
+Individual tools use this format:
 
 >lua
     return {
-      name = "tool_name",           -- Tool name (optional for actions)
+      name = "tool_name",           -- Tool name
       description = "What it does", -- Required
       input_schema = {              -- JSON Schema for parameters
         type = "object",
@@ -362,6 +352,8 @@ CONFIGURATION                                 *buddy-buddy.nvim-configuration*
       host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
       port = 7234,         -- Server port (default: 7234)
       auto_start = false,  -- Start on VimEnter (default: false)
+      auth = true,         -- Bearer token auth on HTTP endpoints (default: true)
+      watch = true,        -- Hot reload file watching (default: true)
       log_level = "info",  -- Log level: "debug", "info", "warn", "error"
       tools = {
         disabled = {},     -- Disable specific tools: {"grep", "diagnostics", ...}
@@ -399,12 +391,11 @@ API                                                     *buddy-buddy.nvim-api*
     buddy.register_tool({
       name = "my_tool",
       description = "Does something",
-      input_schema = {
-        type = "object",
-        properties = {},
-        required = {},
+      args = {
+        param = { type = "string", description = "A parameter" },
       },
-      run = function(args) return { success = true } end,
+      required = { "param" },
+      run = function(args) return { success = true, param = args.param } end,
     })
 <
 
@@ -443,8 +434,8 @@ Check `:messages` for errors. Common issues: - Syntax errors in your tool file
 
 SSE CONNECTION FAILING ~
 
-Ensure: 1. nvim-buddy is running (`:lua
-print(require('nvim-buddy').status().running)`) 2. The URL matches your config
+Ensure: 1. buddy.nvim is running (`:lua
+print(require('buddy').status().running)`) 2. The URL matches your config
 (default: `http://127.0.0.1:7234/sse`) 3. No firewall blocking the connection
 
 ------------------------------------------------------------------------------

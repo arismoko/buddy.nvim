@@ -111,6 +111,10 @@ Add to your Claude Desktop config:
 
 Connect directly to a specific Neovim instance by URL. Simpler, but you must know the port and can only connect to one session.
 
+!!! note "Auth with direct SSE"
+    With default `auth = true`, direct connections must send `Authorization: Bearer <token>`.
+    If your MCP client cannot send auth headers, use `buddy-mcp-proxy` instead.
+
 #### OpenCode
 
 ```jsonc

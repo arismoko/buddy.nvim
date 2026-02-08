@@ -648,9 +648,9 @@ my_helper/
   plugin/my_helper.lua     -- Commands & keymaps (entry point)
   lua/
     my_helper/
+      buddy.lua            -- MCP tool definition (discovered by buddy.nvim)
       init.lua             -- Public API
       config.lua           -- Configuration with defaults
-    buddy.lua              -- MCP tool definition
 ```
 
 ---

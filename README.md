@@ -118,6 +118,8 @@ Add to your Claude Desktop config:
 
 Connect directly to a specific Neovim instance by URL. Simpler, but you must know the port and can only connect to one session.
 
+> **Note**: With auth enabled (default), the client must send an `Authorization: Bearer <token>` header. The proxy handles this automatically; for direct connections, either configure your client's auth headers or disable auth in trusted local setups.
+
 #### OpenCode
 
 ```jsonc
@@ -157,7 +159,7 @@ require("buddy").setup({
 })
 ```
 
-> **Warning**: There is no authentication or TLS. If you bind to `0.0.0.0`, anyone on your network can control your editor. Consider:
+> **Note**: Bearer token authentication is enabled by default (`auth = true`), but there is no TLS. If you bind to `0.0.0.0`, the token is sent in plaintext. Consider:
 > - Using a firewall to restrict access
 > - SSH tunneling for remote access
 > - Only enabling on trusted networks
@@ -368,12 +370,11 @@ local result = buddy.call("buffer", { action = "list" })
 buddy.register_tool({
   name = "my_tool",
   description = "Does something",
-  input_schema = {
-    type = "object",
-    properties = {},
-    required = {},
+  args = {
+    param = { type = "string", description = "A parameter" },
   },
-  run = function(args) return { success = true } end,
+  required = { "param" },
+  run = function(args) return { success = true, param = args.param } end,
 })
 ```
 
