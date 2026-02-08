@@ -8,6 +8,9 @@ local M = {}
 -- Auth token for Bearer authentication (nil = auth disabled)
 local _auth_token = nil
 
+-- Whether the notifier has been wired to methods (once per server lifetime)
+local _notifier_wired = false
+
 --- Set the auth token for request validation
 ---@param token string|nil The Bearer token (nil disables auth)
 function M.set_auth_token(token)
@@ -82,37 +85,33 @@ function M._handle_sse(http_server, client, _request)
 
   http_server.sse_connections[session_id] = sse_conn
 
-  -- Wire up notify callback to broadcast to all sessions
-  local methods = require("buddy.mcp.methods")
-  methods.set_notify_callback(function(notification)
-    local message = {
-      jsonrpc = "2.0",
-      method = notification.method,
-    }
-    if notification.params then
-      message.params = notification.params
-    end
+  -- Wire notifier once (not per session) to route notifications through Notifier service
+  if not _notifier_wired then
+    local SSEHub = require("buddy.transport.sse.hub")
+    local Notifier = require("buddy.services.notifier")
+    local hub = SSEHub.get_instance(http_server)
 
-    -- Broadcast to all active SSE connections
-    local dead_sessions = {}
-    for sid, conn in pairs(http_server.sse_connections) do
-      local sent = conn:send_data(message)
-      if not sent then
-        log.warn(string.format("Dead SSE connection detected, pruning session %s", sid))
-        table.insert(dead_sessions, sid)
-      end
-    end
+    local notifier = Notifier.new({
+      send_fn = function(session_id, msg)
+        return hub:send_to_session(session_id, msg)
+      end,
+      broadcast_fn = function(msg)
+        hub:broadcast(msg)
+      end,
+    })
 
-    -- Prune dead sessions (can't modify table during pairs iteration)
-    if #dead_sessions > 0 then
-      local sse_mgr = sse.SSEManager.get_instance()
-      for _, sid in ipairs(dead_sessions) do
-        sse_mgr:remove_session(sid)
-        http_server.sse_connections[sid] = nil
-      end
-    end
-  end)
-  log.debug("Notify callback wired up for SSE session %s", session_id)
+    local methods = require("buddy.mcp.methods")
+    methods.set_notify_callback(function(notification)
+      notifier:broadcast(notification.method, notification.params)
+    end)
+
+    _notifier_wired = true
+    log.debug("Notifier wired via SSEHub (once)")
+  else
+    -- Ensure hub has latest http_server reference for new connections
+    local SSEHub = require("buddy.transport.sse.hub")
+    SSEHub.get_instance(http_server)
+  end
 
   log.debug(string.format("SSE session created: %s", session_id))
 end
@@ -241,6 +240,11 @@ function M._handle_404(http_server, client, request)
     {["Content-Type"] = "application/json"},
     response
   )
+end
+
+--- Reset internal state (for testing)
+function M._reset()
+  _notifier_wired = false
 end
 
 return M
