@@ -60,7 +60,10 @@ local function log(level, msg, ...)
     return
   end
 
-  local formatted = string.format(msg, ...)
+  local ok_fmt, formatted = pcall(string.format, msg, ...)
+  if not ok_fmt then
+    formatted = msg
+  end
 
   maybe_notify(LEVEL_NAMES[level]:lower(), formatted)
 

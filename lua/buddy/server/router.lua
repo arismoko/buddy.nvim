@@ -5,6 +5,24 @@ local uv = vim.uv
 
 local M = {}
 
+-- Auth token for Bearer authentication (nil = auth disabled)
+local _auth_token = nil
+
+-- Whether the notifier has been wired to methods (once per server lifetime)
+local _notifier_wired = false
+
+--- Set the auth token for request validation
+---@param token string|nil The Bearer token (nil disables auth)
+function M.set_auth_token(token)
+  _auth_token = token
+end
+
+--- Get the current auth token (for testing)
+---@return string|nil
+function M.get_auth_token()
+  return _auth_token
+end
+
 local function parse_query_params(path)
   local query_start = path:find("?")
   if not query_start then
@@ -34,6 +52,21 @@ function M.handle(http_server, client, request, body)
   request.params = params
   request.path = path
 
+  -- Auth check: skip for /health, enforce for all other endpoints
+  if _auth_token and path ~= "/health" then
+    local auth_header = request.headers["authorization"] or ""
+    local provided_token = auth_header:match("^Bearer%s+(.+)$")
+    if provided_token ~= _auth_token then
+      http_server:send_response(client, 401, {["Content-Type"] = "application/json"}, vim.json.encode({
+        error = {
+          code = -32001,
+          message = "Unauthorized: invalid or missing Bearer token",
+        },
+      }))
+      return
+    end
+  end
+
   if request.method == "GET" and path == "/sse" then
     M._handle_sse(http_server, client, request)
   elseif request.method == "POST" and path == "/message" then
@@ -52,27 +85,32 @@ function M._handle_sse(http_server, client, _request)
 
   http_server.sse_connections[session_id] = sse_conn
 
-  -- Wire up notify callback on first SSE connection to broadcast to all sessions
-  local methods = require("buddy.mcp.methods")
-  if not methods._notify_callback then
-    methods.set_notify_callback(function(notification)
-      local message = {
-        jsonrpc = "2.0",
-        method = notification.method,
-      }
-      if notification.params then
-        message.params = notification.params
-      end
+  -- Wire notifier once (not per session) to route notifications through Notifier service
+  if not _notifier_wired then
+    local SSEHub = require("buddy.transport.sse.hub")
+    local Notifier = require("buddy.services.notifier")
+    local hub = SSEHub.get_instance(http_server)
 
-      -- Broadcast to all active SSE connections
-      for sid, conn in pairs(http_server.sse_connections) do
-        local sent = conn:send_data(message)
-        if not sent then
-          log.debug(string.format("Failed to broadcast notification to session %s", sid))
-        end
-      end
+    local notifier = Notifier.new({
+      send_fn = function(session_id, msg)
+        return hub:send_to_session(session_id, msg)
+      end,
+      broadcast_fn = function(msg)
+        hub:broadcast(msg)
+      end,
+    })
+
+    local methods = require("buddy.mcp.methods")
+    methods.set_notify_callback(function(notification)
+      notifier:broadcast(notification.method, notification.params)
     end)
-    log.debug("Hot reload notifications wired up")
+
+    _notifier_wired = true
+    log.debug("Notifier wired via SSEHub (once)")
+  else
+    -- Ensure hub has latest http_server reference for new connections
+    local SSEHub = require("buddy.transport.sse.hub")
+    SSEHub.get_instance(http_server)
   end
 
   log.debug(string.format("SSE session created: %s", session_id))
@@ -202,6 +240,11 @@ function M._handle_404(http_server, client, request)
     {["Content-Type"] = "application/json"},
     response
   )
+end
+
+--- Reset internal state (for testing)
+function M._reset()
+  _notifier_wired = false
 end
 
 return M

@@ -156,4 +156,22 @@ T['tab']['unknown action returns error'] = function()
   MiniTest.expect.no_equality(result.error, nil)
 end
 
+T['tab']['new with malicious file arg does not execute commands'] = function()
+  -- Regression: P0 command injection fix
+  -- Old code used vim.cmd("tabnew " .. args.file) which allowed injection
+  vim.g._buddy_injection_test = nil
+  local before_tabs = vim.api.nvim_list_tabpages()
+
+  -- This payload would execute arbitrary code with the old string concatenation approach
+  local result = tab_tool.run({ action = "new", file = "test|lua vim.g._buddy_injection_test=1" })
+  MiniTest.expect.equality(result.success, true)
+
+  -- The injection should NOT have executed
+  MiniTest.expect.equality(vim.g._buddy_injection_test, nil)
+
+  -- Cleanup
+  vim.cmd("tabclose")
+  vim.g._buddy_injection_test = nil
+end
+
 return T

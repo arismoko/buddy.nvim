@@ -21,6 +21,27 @@ local M = {}
 
 M._server = nil
 M._actual_port = nil
+M._runtime = nil
+
+--- Get or lazily create the runtime primitives (event bus, stores)
+---
+--- Returns a table with event_bus, session_store, and request_store instances.
+--- Created once and reused for the lifetime of the server.
+---
+---@return table runtime { event_bus: BuddyEventBus, session_store: SessionStore, request_store: RequestStore }
+function M.runtime()
+  if not M._runtime then
+    local EventBus = require("buddy.runtime.event_bus")
+    local SessionStore = require("buddy.runtime.state.session_store")
+    local RequestStore = require("buddy.runtime.state.request_store")
+    M._runtime = {
+      event_bus = EventBus.new(),
+      session_store = SessionStore.new(),
+      request_store = RequestStore.new(),
+    }
+  end
+  return M._runtime
+end
 
 --- Setup buddy with the given options
 ---
@@ -28,6 +49,7 @@ M._actual_port = nil
 ---@field host string Server host (default: "127.0.0.1")
 ---@field port number Server port (default: 7234)
 ---@field auto_start boolean Start server automatically (default: false)
+---@field auth boolean Enable Bearer token auth on HTTP endpoints (default: true)
 ---@field watch boolean Enable hot reload file watching (default: true)
 ---@field debug boolean Enable debug logging (default: false)
 ---@field tools table Tool configuration
@@ -54,14 +76,30 @@ function M.start()
   registry.load_builtins()
 
   -- Add each tool subdirectory to runtimepath (not just the parent)
+  -- and source their plugin files (since we're past startup)
   local default_tools_dir = vim.fn.stdpath("data") .. "/buddy-tools"
   if vim.fn.isdirectory(default_tools_dir) == 1 then
     local rtp = vim.o.runtimepath
     for name, type in vim.fs.dir(default_tools_dir) do
       if type == "directory" then
         local tool_path = default_tools_dir .. "/" .. name
-        if not rtp:find(tool_path, 1, true) then
+        local is_new = not rtp:find(tool_path, 1, true)
+        if is_new then
           vim.o.runtimepath = vim.o.runtimepath .. "," .. tool_path
+        end
+        -- Source plugin files (Neovim doesn't auto-load after startup)
+        if is_new then
+          local plugin_dir = tool_path .. "/plugin"
+          if vim.fn.isdirectory(plugin_dir) == 1 then
+            for pname, ptype in vim.fs.dir(plugin_dir) do
+              if ptype == "file" and pname:match("%.lua$") then
+                local ok, err = pcall(vim.cmd.source, plugin_dir .. "/" .. pname)
+                if not ok then
+                  vim.notify("[buddy] Failed to source " .. pname .. ": " .. tostring(err), vim.log.levels.WARN)
+                end
+              end
+            end
+          end
         end
       end
     end
@@ -76,6 +114,19 @@ function M.start()
   local config = require("buddy.config")
   local cfg = config.get()
 
+  -- Generate auth token if auth is enabled
+  local auth_token = nil
+  if cfg.auth then
+    local uv = vim.uv
+    -- Generate a cryptographically-sufficient random token from hrtime + pid + random
+    local raw = string.format("%s:%s:%s:%s", uv.hrtime(), vim.fn.getpid(), math.random(1e9), uv.hrtime())
+    auth_token = vim.fn.sha256(raw)
+  end
+
+  -- Set auth token on router before starting server so it's ready for first connection
+  local router = require("buddy.server.router")
+  router.set_auth_token(auth_token)
+
   local actual_port = server.start(cfg.host, cfg.port)
   M._server = server.get()
   M._actual_port = actual_port
@@ -86,6 +137,7 @@ function M.start()
   sessions.register({
     port = actual_port,
     host = cfg.host,
+    auth_token = auth_token,
   })
 
   -- Start hot reload watching if enabled
@@ -111,6 +163,9 @@ function M.stop()
     M._server = nil
     M._actual_port = nil
   end
+
+  -- Reset runtime singletons so next start() gets fresh state
+  M._runtime = nil
 
   require("buddy.tools").clear()
 end

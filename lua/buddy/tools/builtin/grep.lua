@@ -29,6 +29,11 @@ return {
     local file_pattern = args.file_pattern or "**/*"
     local search_path = args.path
 
+    -- Validate pattern (same as TS)
+    if pattern == "" then
+      return { success = false, error = "Grep pattern cannot be empty" }
+    end
+
     -- If path provided, temporarily cd to it
     local old_cwd = nil
     if search_path and search_path ~= "" then
@@ -37,11 +42,6 @@ return {
       if not ok then
         return { success = false, error = "Invalid path: " .. search_path }
       end
-    end
-
-    -- Validate pattern (same as TS)
-    if pattern == "" then
-      return { success = false, error = "Grep pattern cannot be empty" }
     end
 
     -- Escape forward slashes in pattern to prevent command injection

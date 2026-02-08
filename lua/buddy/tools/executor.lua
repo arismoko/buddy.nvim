@@ -41,9 +41,16 @@ function M.execute(tool_id, args, opts)
     errors.throw(errors.codes.EXECUTION_ERROR, "Tool has no run function: " .. tool_id)
   end
 
-  -- Validate input against schema (new format: tool.args and tool.required)
+  -- Validate input against schema (supports both formats)
   local schema = nil
-  if tool.args then
+  if tool.input_schema then
+    -- New format: tool.input_schema has { type, properties, required }
+    schema = {
+      properties = tool.input_schema.properties,
+      required = tool.input_schema.required,
+    }
+  elseif tool.args then
+    -- Legacy format: tool.args and tool.required
     schema = {
       properties = tool.args,
       required = tool.required,

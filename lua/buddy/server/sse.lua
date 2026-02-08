@@ -25,9 +25,10 @@ function SSEConnection:_send_headers()
 
   local response = "HTTP/1.1 200 OK\r\n" .. table.concat(headers, "\r\n") .. "\r\n\r\n"
 
+  local conn = self
   self.client:write(response, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE header write error: %s", err))
+      conn.closed = true
     end
   end))
 end
@@ -41,9 +42,10 @@ function SSEConnection:send_data(data)
   local data_json = vim.json.encode(data)
   local event = string.format("data: %s\n\n", data_json)
 
+  local conn = self
   self.client:write(event, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE data write error: %s", err))
+      conn.closed = true
     end
   end))
 
@@ -57,9 +59,10 @@ function SSEConnection:send_raw_event(event_type, data)
 
   local event = string.format("event: %s\ndata: %s\n\n", event_type, data)
 
+  local conn = self
   self.client:write(event, vim.schedule_wrap(function(err)
     if err then
-      error(string.format("SSE event write error: %s", err))
+      conn.closed = true
     end
   end))
 
@@ -91,6 +94,16 @@ function SSEManager.get_instance()
   return instance
 end
 
+--- Emit a runtime event if the buddy event bus is available
+---@param event string
+---@param payload table|nil
+local function _emit(event, payload)
+  local ok, buddy = pcall(require, "buddy")
+  if ok and buddy._runtime then
+    buddy._runtime.event_bus:publish(event, payload)
+  end
+end
+
 function SSEManager:create_session(client, port)
   local session_id = tostring(uv.hrtime())
   local sse_conn = SSEConnection.new(client, session_id)
@@ -102,11 +115,22 @@ function SSEManager:create_session(client, port)
 
   sse_conn:send_raw_event("endpoint", endpoint_url)
 
+  _emit("session_connected", { session_id = session_id })
+
   return session_id, sse_conn
 end
 
 function SSEManager:get_session(session_id)
   return self.sessions[session_id]
+end
+
+function SSEManager:remove_session(session_id)
+  local conn = self.sessions[session_id]
+  if conn then
+    conn:close()
+    self.sessions[session_id] = nil
+    _emit("session_disconnected", { session_id = session_id })
+  end
 end
 
 return {

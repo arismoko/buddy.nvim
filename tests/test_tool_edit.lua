@@ -208,4 +208,49 @@ T['replace_all']['replaces entire buffer with empty content'] = function()
   vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+T['insert']['preserves empty lines in content'] = function()
+  -- Regression: P2 edit.lua dropped empty lines
+  local bufnr = create_test_buffer({ "line1", "line3" })
+
+  local result = edit_tool.run({
+    action = "insert",
+    line = 2,
+    content = "before\n\nafter"
+  })
+
+  MiniTest.expect.equality(result.success, true)
+  MiniTest.expect.equality(result.inserted, 3)
+
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  MiniTest.expect.equality(lines[1], "line1")
+  MiniTest.expect.equality(lines[2], "before")
+  MiniTest.expect.equality(lines[3], "")
+  MiniTest.expect.equality(lines[4], "after")
+  MiniTest.expect.equality(lines[5], "line3")
+
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T['replace_all']['preserves empty lines in content'] = function()
+  -- Regression: P2 edit.lua dropped empty lines
+  local bufnr = create_test_buffer({ "old1", "old2" })
+
+  local result = edit_tool.run({
+    action = "replace_all",
+    content = "line1\n\n\nline4"
+  })
+
+  MiniTest.expect.equality(result.success, true)
+  MiniTest.expect.equality(result.lines, 4)
+
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  MiniTest.expect.equality(#lines, 4)
+  MiniTest.expect.equality(lines[1], "line1")
+  MiniTest.expect.equality(lines[2], "")
+  MiniTest.expect.equality(lines[3], "")
+  MiniTest.expect.equality(lines[4], "line4")
+
+  vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 return T

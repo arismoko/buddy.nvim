@@ -97,6 +97,7 @@ function M.untrack_plugin(prefix)
   -- Stop watcher if exists
   if plugin.watcher then
     plugin.watcher:stop()
+    plugin.watcher:close()
     plugin.watcher = nil
   end
 
@@ -181,6 +182,7 @@ function M._start_watcher(prefix)
   -- Stop existing watcher
   if plugin.watcher then
     plugin.watcher:stop()
+    plugin.watcher:close()
     plugin.watcher = nil
   end
 
@@ -208,6 +210,7 @@ function M._start_watcher(prefix)
   if not ok then
     log.warn("Failed to start watcher for %s at %s", prefix, plugin.lua_dir)
     watcher:stop()
+    watcher:close()
     return
   end
 
@@ -224,6 +227,7 @@ function M._stop_watcher(prefix)
   end
 
   plugin.watcher:stop()
+  plugin.watcher:close()
   plugin.watcher = nil
   log.debug("Stopped watcher for %s", prefix)
 end

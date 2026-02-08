@@ -12,6 +12,9 @@ bun.lock
 # Local development
 TODO.md
 .luarc.json
+REVIEW.md
+git-journal.md
+tmp/
 
 # MkDocs build output
 site/

@@ -72,7 +72,9 @@ function HTTPServer:start(router)
   if ok then
     self.port = preferred_port
     self.running = true
-    print(string.format("HTTP server listening on http://%s:%d", host, preferred_port))
+    vim.schedule(function()
+      vim.notify(string.format("[buddy] HTTP server listening on http://%s:%d", host, preferred_port), vim.log.levels.INFO)
+    end)
     return preferred_port
   end
 
@@ -105,7 +107,6 @@ function HTTPServer:start(router)
           vim.log.levels.INFO
         )
       end)
-      print(string.format("HTTP server listening on http://%s:%d", host, try_port))
       return try_port
     end
   end
@@ -149,15 +150,31 @@ function HTTPServer:_handle_connection(client)
     version = "1.1",
   }
 
+  local function remove_connection()
+    for i, c in ipairs(self.connections) do
+      if c == client then
+        table.remove(self.connections, i)
+        break
+      end
+    end
+  end
+
   -- Read data from client
   client:read_start(vim.schedule_wrap(function(err, chunk)
     if err then
-      client:close()
+      remove_connection()
+      if not client:is_closing() then
+        client:close()
+      end
       return
     end
 
     if not chunk then
-      -- Connection closed
+      -- Connection closed - remove from tracking and close handle
+      remove_connection()
+      if not client:is_closing() then
+        client:close()
+      end
       return
     end
 
@@ -236,6 +253,7 @@ function HTTPServer:send_response(client, status, headers, body)
     [200] = "OK",
     [202] = "Accepted",
     [400] = "Bad Request",
+    [401] = "Unauthorized",
     [404] = "Not Found",
     [500] = "Internal Server Error",
   })[status] or "OK"
@@ -299,7 +317,7 @@ function HTTPServer:stop()
     self.server:close()
   end
 
-  print("HTTP server stopped")
+  vim.notify("[buddy] HTTP server stopped", vim.log.levels.INFO)
 end
 
 return HTTPServer

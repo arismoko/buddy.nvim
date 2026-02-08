@@ -1,17 +1,46 @@
 {
   "name": "buddy-mcp-proxy",
   "version": "0.1.0",
-  "description": "MCP proxy server for buddy.nvim sessions",
+  "description": "MCP proxy server for buddy.nvim — connect AI agents to Neovim sessions",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "buddy-mcp-proxy": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "start": "node dist/index.js",
     "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --banner:js='#!/usr/bin/env node' --packages=external",
+    "prepublishOnly": "npm run build",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "neovim",
+    "nvim",
+    "buddy",
+    "ai",
+    "model-context-protocol",
+    "editor",
+    "proxy"
+  ],
+  "author": "arismoko",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arismoko/buddy.nvim.git",
+    "directory": "mcp/buddy-mcp-proxy"
+  },
+  "homepage": "https://github.com/arismoko/buddy.nvim/tree/main/mcp/buddy-mcp-proxy",
+  "bugs": {
+    "url": "https://github.com/arismoko/buddy.nvim/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"

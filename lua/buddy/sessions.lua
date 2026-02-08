@@ -241,6 +241,7 @@ function M.register(info)
     pid = vim.fn.getpid(),
     cwd = vim.fn.getcwd(),
     label = nil,
+    auth_token = info.auth_token,  -- Bearer token for HTTP auth (nil if auth disabled)
     started_at = os.time(),
     last_seen = os.time(),
   }

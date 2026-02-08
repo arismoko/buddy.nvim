@@ -49,7 +49,11 @@ return {
       return { success = true, tabs = result }
 
     elseif args.action == "new" then
-      vim.cmd("tabnew " .. (args.file or ""))
+      if args.file then
+        vim.cmd({ cmd = "tabnew", args = { args.file } })
+      else
+        vim.cmd("tabnew")
+      end
       return { success = true }
 
     elseif args.action == "close" then
@@ -68,7 +72,7 @@ return {
       if not args.tabnr then
         return { success = false, error = "tabnr required for goto action" }
       end
-      vim.cmd("tabn " .. args.tabnr)
+      vim.cmd({ cmd = "tabnext", args = { tonumber(args.tabnr) } })
       return { success = true, tabnr = args.tabnr }
 
     elseif args.action == "first" then

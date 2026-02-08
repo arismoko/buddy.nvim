@@ -293,4 +293,24 @@ T['grep']['grep preserves custom file_pattern in result'] = function()
   cleanup_temp_files(created_files, temp_dir)
 end
 
+T['grep']['empty pattern does not change cwd'] = function()
+  -- Regression: P1 grep.lua CWD corruption
+  -- Old code would cd to path before validating empty pattern
+  clean_qflist()
+
+  local cwd_before = vim.fn.getcwd()
+  local temp_dir = vim.fn.tempname()
+  vim.fn.mkdir(temp_dir, "p")
+
+  local result = grep_tool.run({
+    pattern = "",
+    path = temp_dir,
+  })
+
+  MiniTest.expect.equality(result.success, false)
+  MiniTest.expect.equality(vim.fn.getcwd(), cwd_before)
+
+  vim.fn.delete(temp_dir, "rf")
+end
+
 return T
