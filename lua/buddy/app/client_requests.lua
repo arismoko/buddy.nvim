@@ -1,6 +1,6 @@
--- Client Requests: Compatibility wrapper delegating to services/client_requester
--- Preserves existing API for callers (roots.lua, sampling.lua, elicitation.lua)
--- Offers both sync (request) and async (request_async) paths.
+--- Application-level client request facade
+--- Singleton wrapper around services/client_requester, wired to SSE transport.
+--- Provides convenience methods for sampling, elicitation, roots, and ping.
 
 local M = {}
 

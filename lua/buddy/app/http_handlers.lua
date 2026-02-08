@@ -5,6 +5,7 @@
 local log = require("buddy.log")
 
 local uv = vim.uv
+local errors = require("buddy.protocol.mcp.errors")
 
 local M = {}
 
@@ -27,13 +28,13 @@ end
 ---@param request table Parsed HTTP request (with params populated)
 ---@param body string Request body
 function M.handle_message(http_server, client, request, body)
-  local client_requests = require("buddy.mcp.client_requests")
+  local client_requests = require("buddy.app.client_requests")
   local session_id = request.params and request.params.sessionId
 
   if not session_id then
     http_server:send_response(client, 400, { ["Content-Type"] = "application/json" }, vim.json.encode({
       error = {
-        code = -32600,
+        code = errors.INVALID_REQUEST,
         message = "Invalid Request: Missing sessionId parameter",
       },
     }))
@@ -60,7 +61,7 @@ function M.handle_message(http_server, client, request, body)
   if not ok or not parsed then
     http_server:send_response(client, 400, { ["Content-Type"] = "application/json" }, vim.json.encode({
       error = {
-        code = -32700,
+        code = errors.PARSE_ERROR,
         message = "Parse error: Invalid JSON",
       },
     }))
@@ -81,7 +82,7 @@ function M.handle_message(http_server, client, request, body)
   if not mcp_ok or not mcp.handle_request then
     http_server:send_response(client, 500, { ["Content-Type"] = "application/json" }, vim.json.encode({
       error = {
-        code = -32603,
+        code = errors.INTERNAL_ERROR,
         message = "Internal error: MCP handler not available",
       },
     }))
@@ -101,7 +102,7 @@ function M.handle_message(http_server, client, request, body)
         jsonrpc = "2.0",
         id = request_data.id,
         error = {
-          code = -32603,
+          code = errors.INTERNAL_ERROR,
           message = "Internal error: " .. tostring(response_result),
         },
       }

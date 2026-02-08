@@ -91,14 +91,14 @@ function M.execute(tool_id, args, opts)
   -- Add elicitation capability if session_id is available
   if opts.session_id then
     context.elicit = function(message, schema)
-      local client_requests = require("buddy.mcp.client_requests")
+      local client_requests = require("buddy.app.client_requests")
       return client_requests.elicitation_create(opts.session_id, {
         message = message,
         requestedSchema = schema,
       })
     end
     context.sample = function(params)
-      local client_requests = require("buddy.mcp.client_requests")
+      local client_requests = require("buddy.app.client_requests")
       return client_requests.sampling_create_message(opts.session_id, params)
     end
   end

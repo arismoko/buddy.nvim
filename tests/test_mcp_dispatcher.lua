@@ -6,7 +6,6 @@ T['hooks'] = {
   pre_case = function()
     -- Clear cached modules for clean state
     package.loaded['buddy.mcp'] = nil
-    package.loaded['buddy.mcp.methods'] = nil
     package.loaded['buddy.protocol.mcp.dispatcher'] = nil
     package.loaded['buddy.protocol.mcp.registry'] = nil
     package.loaded['buddy.protocol.jsonrpc'] = nil
@@ -134,11 +133,7 @@ T['handle_request()']['notification handler error returns nil'] = function()
   MiniTest.expect.equality(response, nil)
 end
 
--- === Backward compatibility ===
-
-T['backward compatibility'] = MiniTest.new_set()
-
-T['backward compatibility']['mcp.handle_request delegates to dispatcher'] = function()
+T['handle_request()']['mcp.handle_request delegates to dispatcher'] = function()
   local mcp = require('buddy.mcp')
   local response = mcp.handle_request('s1', {
     jsonrpc = '2.0',
@@ -147,36 +142,6 @@ T['backward compatibility']['mcp.handle_request delegates to dispatcher'] = func
   })
   MiniTest.expect.equality(response.jsonrpc, '2.0')
   MiniTest.expect.equality(response.id, 1)
-end
-
-T['backward compatibility']['methods facade supports index lookup'] = function()
-  local methods = require('buddy.mcp.methods')
-  local handler = methods['ping']
-  MiniTest.expect.equality(type(handler), 'function')
-end
-
-T['backward compatibility']['methods facade exposes content helpers'] = function()
-  local methods = require('buddy.mcp.methods')
-  MiniTest.expect.equality(type(methods.image_content), 'function')
-  MiniTest.expect.equality(type(methods.resource_content), 'function')
-  MiniTest.expect.equality(type(methods.embedded_resource), 'function')
-  MiniTest.expect.equality(type(methods.embedded_blob), 'function')
-  MiniTest.expect.equality(type(methods.resource_link), 'function')
-  MiniTest.expect.equality(type(methods.audio_content), 'function')
-end
-
-T['backward compatibility']['methods facade exposes notify functions'] = function()
-  local methods = require('buddy.mcp.methods')
-  MiniTest.expect.equality(type(methods.set_notify_callback), 'function')
-  MiniTest.expect.equality(type(methods.notify_tools_changed), 'function')
-  MiniTest.expect.equality(type(methods.notify_prompts_changed), 'function')
-  MiniTest.expect.equality(type(methods.notify_resources_changed), 'function')
-end
-
-T['backward compatibility']['methods.get_log_level works'] = function()
-  local methods = require('buddy.mcp.methods')
-  MiniTest.expect.equality(type(methods.get_log_level), 'function')
-  MiniTest.expect.equality(methods.get_log_level(), 'info')
 end
 
 return T

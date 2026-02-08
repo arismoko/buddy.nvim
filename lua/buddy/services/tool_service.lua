@@ -8,6 +8,7 @@ local log = require("buddy.log")
 ---@field _executor table tools.executor module
 ---@field _notifier table|nil Notifier instance for progress notifications
 ---@field _client_requester table|nil ClientRequester for elicitation/sampling
+---@field _request_store table|nil RequestStore for request→task binding
 local ToolService = {}
 ToolService.__index = ToolService
 
@@ -15,7 +16,7 @@ ToolService.__index = ToolService
 local _instance = nil
 
 --- Create a new ToolService
----@param opts table { notifier?: Notifier, client_requester?: ClientRequester }
+---@param opts table { notifier?: Notifier, client_requester?: ClientRequester, request_store?: RequestStore }
 ---@return ToolService
 function ToolService.new(opts)
   opts = opts or {}
@@ -23,6 +24,7 @@ function ToolService.new(opts)
   self._executor = require("buddy.tools.executor")
   self._notifier = opts.notifier
   self._client_requester = opts.client_requester
+  self._request_store = opts.request_store
   return self
 end
 
@@ -51,9 +53,9 @@ end
 ---
 ---@param session_id string MCP session ID
 ---@param params table MCP tools/call params { name, arguments, _meta }
----@param _request_id any JSON-RPC request ID (for future cancellation binding)
+---@param request_id any JSON-RPC request ID (for cancellation binding)
 ---@return table MCP response { content, isError?, structuredContent? }
-function ToolService:call(session_id, params, _request_id)
+function ToolService:call(session_id, params, request_id)
   local errors = require("buddy.tools.errors")
   local tools = require("buddy.tools")
 
@@ -80,20 +82,30 @@ function ToolService:call(session_id, params, _request_id)
   }
 
   -- Execute tool
-  local ok, result = pcall(self._executor.execute, tool_name, args, exec_opts)
+  local ok, result_or_err, task_id = pcall(self._executor.execute, tool_name, args, exec_opts)
+
+  -- Bind request → task for cancellation (if async tool returned a task_id)
+  if ok and task_id and request_id and session_id and self._request_store then
+    self._request_store:bind_tool_task(session_id, request_id, task_id)
+  end
 
   if not ok then
-    return errors.to_mcp_response(result)
+    return errors.to_mcp_response(result_or_err)
   end
 
   -- Guard: async tools return a cancel function from the sync path.
   -- This happens when a tool is async-only but called through the sync executor.
   -- We can't serialize a function, so return an error instead.
-  if type(result) == "function" then
+  if type(result_or_err) == "function" then
     return errors.to_mcp_response("Tool '" .. tool_name .. "' requires async execution")
   end
 
-  return self:_shape_result(result, tool)
+  -- Unbind request → task now that tool completed
+  if task_id and request_id and session_id and self._request_store then
+    self._request_store:unbind_tool_task(session_id, request_id)
+  end
+
+  return self:_shape_result(result_or_err, tool)
 end
 
 --- Send progress notification via notifier

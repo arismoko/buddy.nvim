@@ -82,6 +82,21 @@ function RequestStore:get(key)
   return self._requests[key]
 end
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- Tool-task binding: maps (session_id, request_id) → task_id for cancellation
+-- ────────────────────────────────────────────────────────────────────────────
+
+-- Private storage for tool-task bindings (composite key)
+local _tool_tasks = {}
+
+--- Build composite key for tool-task binding
+---@param session_id string
+---@param request_id any
+---@return string
+local function _task_key(session_id, request_id)
+  return session_id .. ":" .. tostring(request_id)
+end
+
 --- Clean up all requests associated with a session
 ---
 --- Removes all entries (pending, resolved, or rejected) whose meta.session_id
@@ -103,6 +118,39 @@ function RequestStore:cleanup_by_session(session_id)
   for _, key in ipairs(to_remove) do
     self._requests[key] = nil
   end
+  -- Also clean up tool-task bindings for this session
+  local task_keys_to_remove = {}
+  for key, _ in pairs(_tool_tasks) do
+    if key:sub(1, #session_id + 1) == session_id .. ":" then
+      task_keys_to_remove[#task_keys_to_remove + 1] = key
+    end
+  end
+  for _, key in ipairs(task_keys_to_remove) do
+    _tool_tasks[key] = nil
+  end
+end
+
+--- Bind a request to a running tool task for later cancellation
+---@param session_id string
+---@param request_id any JSON-RPC request ID
+---@param task_id string Executor task ID
+function RequestStore:bind_tool_task(session_id, request_id, task_id)
+  _tool_tasks[_task_key(session_id, request_id)] = task_id
+end
+
+--- Look up the task_id for a (session, request) pair
+---@param session_id string
+---@param request_id any JSON-RPC request ID
+---@return string|nil task_id
+function RequestStore:get_tool_task(session_id, request_id)
+  return _tool_tasks[_task_key(session_id, request_id)]
+end
+
+--- Remove the binding after task completes or is cancelled
+---@param session_id string
+---@param request_id any JSON-RPC request ID
+function RequestStore:unbind_tool_task(session_id, request_id)
+  _tool_tasks[_task_key(session_id, request_id)] = nil
 end
 
 return RequestStore

@@ -29,16 +29,20 @@ function M.start_wiring(hub)
     end,
   })
 
-  -- Wire methods facade notification callback
-  local methods = require("buddy.mcp.methods")
-  methods.set_notify_callback(function(notification)
-    notifier:broadcast(notification.method, notification.params)
+  -- Get runtime for event bus subscription and ToolService wiring
+  local buddy = require("buddy")
+  local runtime = buddy.runtime()
+
+  -- Subscribe to tools_changed events and broadcast via notifier
+  runtime.event_bus:subscribe("tools_changed", function()
+    notifier:broadcast("notifications/tools/list_changed")
   end)
 
-  -- Wire ToolService singleton with notifier for progress notifications
+  -- Wire ToolService singleton with notifier and request_store for cancellation
   local ToolService = require("buddy.services.tool_service")
   ToolService.set_instance(ToolService.new({
     notifier = notifier,
+    request_store = runtime.request_store,
   }))
 
   _wired = true
@@ -57,14 +61,8 @@ function M.reset_wiring()
     ToolService.reset()
   end
 
-  -- Clear notify callback
-  local methods_ok, methods = pcall(require, "buddy.mcp.methods")
-  if methods_ok then
-    methods.set_notify_callback(nil)
-  end
-
   -- Reset client_requests singleton
-  local cr_ok, cr = pcall(require, "buddy.mcp.client_requests")
+  local cr_ok, cr = pcall(require, "buddy.app.client_requests")
   if cr_ok and cr._reset then
     cr._reset()
   end

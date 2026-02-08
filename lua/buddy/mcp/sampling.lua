@@ -15,7 +15,7 @@ local M = {}
 ---@return string|nil error
 function M.create_message(session_id, params)
   local session_state = require("buddy.mcp.session_state")
-  local client_requests = require("buddy.mcp.client_requests")
+  local client_requests = require("buddy.app.client_requests")
   
   if not session_state.has_capability(session_id, "sampling") then
     return nil, "Client does not support sampling capability"
