@@ -11,5 +11,9 @@ if not vim.uv.fs_stat(mini_path) then
 end
 vim.opt.rtp:prepend(mini_path)
 
+-- Add nvim-nio to runtime path
+local nio_path = root .. 'deps/nvim-nio'
+vim.opt.rtp:prepend(nio_path)
+
 -- Setup mini.test
 require('mini.test').setup()

@@ -1,5 +1,6 @@
 -- Client Requests: Compatibility wrapper delegating to services/client_requester
 -- Preserves existing API for callers (roots.lua, sampling.lua, elicitation.lua)
+-- Offers both sync (request) and async (request_async) paths.
 
 local M = {}
 
@@ -23,7 +24,7 @@ local function get_requester()
   return _requester
 end
 
---- Send a request to client and wait for response
+--- Send a request to client and wait for response (sync, blocks via nio.run + vim.wait)
 ---@param session_id string
 ---@param method string
 ---@param params table
@@ -32,6 +33,17 @@ end
 ---@return string|nil error
 function M.request(session_id, method, params, timeout_ms)
   return get_requester():request_sync(session_id, method, params, timeout_ms)
+end
+
+--- Send a request to client (async, must be called inside nio coroutine)
+---@param session_id string
+---@param method string
+---@param params table
+---@param timeout_ms? number Default 30000
+---@return any result
+---@return string|nil error
+function M.request_async(session_id, method, params, timeout_ms)
+  return get_requester():request(session_id, method, params, timeout_ms)
 end
 
 --- Check if a message is a response to a pending request

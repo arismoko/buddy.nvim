@@ -21,6 +21,10 @@ deps:
 		mkdir -p deps && \
 		git clone --depth=1 https://github.com/echasnovski/mini.nvim deps/mini.nvim; \
 	fi
+	@if [ ! -d deps/nvim-nio ]; then \
+		mkdir -p deps && \
+		git clone --depth=1 https://github.com/nvim-neotest/nvim-nio deps/nvim-nio; \
+	fi
 
 # Clean up
 clean:
