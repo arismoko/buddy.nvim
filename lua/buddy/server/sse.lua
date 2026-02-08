@@ -94,6 +94,16 @@ function SSEManager.get_instance()
   return instance
 end
 
+--- Emit a runtime event if the buddy event bus is available
+---@param event string
+---@param payload table|nil
+local function _emit(event, payload)
+  local ok, buddy = pcall(require, "buddy")
+  if ok and buddy._runtime then
+    buddy._runtime.event_bus:publish(event, payload)
+  end
+end
+
 function SSEManager:create_session(client, port)
   local session_id = tostring(uv.hrtime())
   local sse_conn = SSEConnection.new(client, session_id)
@@ -104,6 +114,8 @@ function SSEManager:create_session(client, port)
   local endpoint_url = string.format("http://%s:%d/message?sessionId=%s", host, port, session_id)
 
   sse_conn:send_raw_event("endpoint", endpoint_url)
+
+  _emit("session_connected", { session_id = session_id })
 
   return session_id, sse_conn
 end
@@ -117,6 +129,7 @@ function SSEManager:remove_session(session_id)
   if conn then
     conn:close()
     self.sessions[session_id] = nil
+    _emit("session_disconnected", { session_id = session_id })
   end
 end
 

@@ -21,6 +21,27 @@ local M = {}
 
 M._server = nil
 M._actual_port = nil
+M._runtime = nil
+
+--- Get or lazily create the runtime primitives (event bus, stores)
+---
+--- Returns a table with event_bus, session_store, and request_store instances.
+--- Created once and reused for the lifetime of the server.
+---
+---@return table runtime { event_bus: BuddyEventBus, session_store: SessionStore, request_store: RequestStore }
+function M.runtime()
+  if not M._runtime then
+    local EventBus = require("buddy.runtime.event_bus")
+    local SessionStore = require("buddy.runtime.state.session_store")
+    local RequestStore = require("buddy.runtime.state.request_store")
+    M._runtime = {
+      event_bus = EventBus.new(),
+      session_store = SessionStore.new(),
+      request_store = RequestStore.new(),
+    }
+  end
+  return M._runtime
+end
 
 --- Setup buddy with the given options
 ---
@@ -142,6 +163,9 @@ function M.stop()
     M._server = nil
     M._actual_port = nil
   end
+
+  -- Reset runtime singletons so next start() gets fresh state
+  M._runtime = nil
 
   require("buddy.tools").clear()
 end
