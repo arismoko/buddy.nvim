@@ -248,6 +248,80 @@ T['execute()']['start_async with function return uses cancel-fn precedence'] = f
   executor.cancel(task_id)
 end
 
+-- Regression: start_async + function return + immediate context(result) delivers and no leak
+T['execute()']['start_async + fn return + immediate context delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-fn-imm-ctx',
+    description = 'start_async + cancel fn + immediate context(result)',
+    run = function(_, context)
+      context.start_async()
+      context({ immediate = true })
+      return function() end  -- cancel function
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('async-fn-imm-ctx', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Callback should have been invoked with the deferred result (flushed after run)
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { immediate = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Regression: start_async + function return + late context(result) delivers and no leak
+T['execute()']['start_async + fn return + late context delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local complete_fn
+
+  tools.register({
+    name = 'async-fn-late-ctx',
+    description = 'start_async + cancel fn + late context(result)',
+    run = function(_, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return function() end  -- cancel function
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('async-fn-late-ctx', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+  -- No callback yet — context() not called inside run()
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- Task should still be running (not leaked, not prematurely cleaned)
+  MiniTest.expect.equality(#executor.list_running(), 1)
+
+  -- Late completion after run() returned
+  complete_fn({ late = true })
+
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { late = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 -- start_async with cancel_fn argument
 T['execute()']['start_async with cancel_fn arg registers it'] = function()
   local tools = get_tools()

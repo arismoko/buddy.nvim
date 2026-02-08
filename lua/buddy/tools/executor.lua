@@ -213,6 +213,18 @@ function M.execute(tool_id, args, opts)
       -- The placeholder was cleaned up by async_callback or context __call.
       log.debug("Tool %s completed synchronously inside run() (task %s)", tool_id, task_id)
     end
+
+    -- Transition deferred state so context() calls deliver immediately from
+    -- this point on (prevents permanent deferral when start_async() was also
+    -- called).  Flush any result that was buffered during run().
+    if async_declared then
+      deferred_delivered = true
+      if deferred_result then
+        _deliver_result(deferred_result.result)
+        deferred_result = nil
+      end
+    end
+
     return nil, task_id
   end
 
