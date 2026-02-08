@@ -72,20 +72,45 @@ function M.execute(tool_id, args, opts)
   -- Create async callback wrapper that handles cancellation
   local async_callback = callback and function(result)
     local task = running_tasks[task_id]
-    if task and task.cancelled then
+    if not task then
+      -- Task already removed (cancelled or completed) — drop the result
+      log.debug("Ignoring result for absent task %s (likely cancelled)", task_id)
+      return
+    end
+    if task.cancelled then
       log.debug("Ignoring result from cancelled task %s", task_id)
       running_tasks[task_id] = nil
       return
     end
     log.debug("Async tool %s completed (task %s)", tool_id, task_id)
     running_tasks[task_id] = nil
-    callback(nil, result)
+    -- pcall to prevent callback failures from skipping cleanup in context.__call
+    local cb_ok, cb_err = pcall(callback, nil, result)
+    if not cb_ok then
+      log.warn("Async callback failed for task %s: %s", task_id, tostring(cb_err))
+    end
   end
+
+  local async_declared = false
 
   -- Make progress callback available to tool run function
   local context = {
     on_progress = on_progress,
     session_id = opts.session_id,
+    -- Explicitly mark a tool as async even if run() returns nil.
+    -- Optional cancel_fn allows non-cancellable async tools to still declare async.
+    start_async = function(cancel_fn)
+      if cancel_fn ~= nil and type(cancel_fn) ~= "function" then
+        error("context.start_async(cancel_fn) expects function or nil")
+      end
+      async_declared = true
+      if type(cancel_fn) == "function" then
+        local task = running_tasks[task_id]
+        if task then
+          task.cancel_fn = cancel_fn
+        end
+      end
+    end,
   }
 
   -- Add elicitation capability if session_id is available
@@ -103,47 +128,91 @@ function M.execute(tool_id, args, opts)
     end
   end
 
-  -- Allow tools to use context as a callback for async completion
+  -- Allow tools to use context as a callback for async completion.
+  -- Even without an external callback, clean up the running_tasks entry
+  -- and unbind from request_store if available.
   setmetatable(context, {
     __call = function(_, result)
       if async_callback then
         async_callback(result)
+      else
+        -- No external callback — still clean up running_tasks
+        local task = running_tasks[task_id]
+        if task and not task.cancelled then
+          log.debug("Async tool %s completed without callback (task %s)", tool_id, task_id)
+          running_tasks[task_id] = nil
+        end
+      end
+      -- Unbind request→task mapping on completion (prevents binding leak)
+      if opts.request_store and opts.session_id and opts.request_id then
+        opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
       end
     end,
   })
 
+  -- Register a placeholder in running_tasks BEFORE calling tool.run().
+  -- This prevents a race where an async tool calls context(result) synchronously
+  -- inside run() before returning its cancel function — the callback/context __call
+  -- would see running_tasks[task_id] == nil and drop the result.
+  running_tasks[task_id] = {
+    cancel_fn = nil, -- Updated after tool.run() returns
+    cancelled = false,
+    callback = callback,
+    tool_id = tool_id,
+  }
+
+  -- Bind request→task mapping BEFORE tool.run() so that immediate-completion
+  -- async tools can unbind during run() without a race against post-exec binding.
+  if opts.request_store and opts.session_id and opts.request_id then
+    opts.request_store:bind_tool_task(opts.session_id, opts.request_id, task_id)
+  end
+
   -- Pass context as second arg to run
   local ok, cancel_or_result = pcall(tool.run, args, context)
   if not ok then
+    -- Clean up placeholder and binding on failure
+    running_tasks[task_id] = nil
+    if opts.request_store and opts.session_id and opts.request_id then
+      opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
+    end
     log.error("Tool execution failed: %s", tostring(cancel_or_result))
     errors.throw(errors.codes.EXECUTION_ERROR, "Tool execution failed: " .. tostring(cancel_or_result), { tool = tool_id })
   end
 
-  -- If cancel_or_result is a function, it's a cancel fn (async tool)
-  if type(cancel_or_result) == "function" and callback then
-    running_tasks[task_id] = {
-      cancel_fn = cancel_or_result,
-      cancelled = false,
-      callback = callback,
-      tool_id = tool_id,
-    }
-    log.debug("Tool %s running async (task %s)", tool_id, task_id)
+  -- If cancel_or_result is a function, it's a cancel fn (async tool).
+  -- Update the placeholder with the actual cancel function.
+  if type(cancel_or_result) == "function" then
+    local task = running_tasks[task_id]
+    if task then
+      -- Task still exists (wasn't completed synchronously inside run())
+      task.cancel_fn = cancel_or_result
+      log.debug("Tool %s running async (task %s)", tool_id, task_id)
+    else
+      -- Task was already completed synchronously inside run() via context().
+      -- The placeholder was cleaned up by async_callback or context __call.
+      log.debug("Tool %s completed synchronously inside run() (task %s)", tool_id, task_id)
+    end
     return nil, task_id
   end
 
-  -- If result is nil and callback provided, async tool without cancel fn
-  if cancel_or_result == nil and callback then
-    running_tasks[task_id] = {
-      cancel_fn = nil,
-      cancelled = false,
-      callback = callback,
-      tool_id = tool_id,
-    }
-    log.debug("Tool %s running async without cancel (task %s)", tool_id, task_id)
+  -- Async tool explicitly declared via context.start_async().
+  if async_declared then
+    local task = running_tasks[task_id]
+    if task then
+      log.debug("Tool %s declared async (task %s)", tool_id, task_id)
+    else
+      -- Task already completed synchronously inside run() via context().
+      log.debug("Tool %s declared async and completed inside run() (task %s)", tool_id, task_id)
+    end
     return nil, task_id
   end
 
-  -- Sync tool - return result directly
+  -- Sync tool - clean up the placeholder and binding, return result directly.
+  -- (nil is a valid sync result)
+  running_tasks[task_id] = nil
+  if opts.request_store and opts.session_id and opts.request_id then
+    opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
+  end
   log.debug("Tool %s completed", tool_id)
   return cancel_or_result, nil
 end
@@ -221,9 +290,12 @@ function M.cancel(task_id)
     end
   end
 
-  -- Notify callback with cancellation error
+  -- Notify callback with cancellation error (pcall to prevent leaked entries)
   if task.callback then
-    task.callback(errors.create(errors.codes.CANCELLED, "Task cancelled"), nil)
+    local cb_ok, cb_err = pcall(task.callback, errors.create(errors.codes.CANCELLED, "Task cancelled"), nil)
+    if not cb_ok then
+      log.warn("Cancel callback failed for task %s: %s", task_id, tostring(cb_err))
+    end
   end
 
   running_tasks[task_id] = nil
@@ -238,6 +310,12 @@ function M.list_running()
     table.insert(result, { id = id, tool_id = task.tool_id, cancelled = task.cancelled })
   end
   return result
+end
+
+--- Reset internal state (for testing only)
+function M._reset()
+  running_tasks = {}
+  next_task_id = 1
 end
 
 return M

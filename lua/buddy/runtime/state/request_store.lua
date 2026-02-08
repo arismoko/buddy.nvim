@@ -14,6 +14,7 @@
 
 ---@class RequestStore
 ---@field _requests table<string, RequestEntry>
+---@field _tool_tasks table<string, string> Maps composite key → task_id
 local RequestStore = {}
 RequestStore.__index = RequestStore
 
@@ -22,6 +23,7 @@ RequestStore.__index = RequestStore
 function RequestStore.new()
   local self = setmetatable({}, RequestStore)
   self._requests = {}
+  self._tool_tasks = {}
   return self
 end
 
@@ -86,15 +88,26 @@ end
 -- Tool-task binding: maps (session_id, request_id) → task_id for cancellation
 -- ────────────────────────────────────────────────────────────────────────────
 
--- Private storage for tool-task bindings (composite key)
-local _tool_tasks = {}
-
 --- Build composite key for tool-task binding
 ---@param session_id string
 ---@param request_id any
 ---@return string
 local function _task_key(session_id, request_id)
-  return session_id .. ":" .. tostring(request_id)
+  return session_id .. ":" .. type(request_id) .. ":" .. tostring(request_id)
+end
+
+--- Collect all bound task_ids for a session (for cancellation before cleanup)
+---@param session_id string Session identifier
+---@return string[] task_ids List of bound task IDs
+function RequestStore:get_tool_tasks_for_session(session_id)
+  local task_ids = {}
+  local prefix = session_id .. ":"
+  for key, task_id in pairs(self._tool_tasks) do
+    if key:sub(1, #prefix) == prefix then
+      task_ids[#task_ids + 1] = task_id
+    end
+  end
+  return task_ids
 end
 
 --- Clean up all requests associated with a session
@@ -120,13 +133,13 @@ function RequestStore:cleanup_by_session(session_id)
   end
   -- Also clean up tool-task bindings for this session
   local task_keys_to_remove = {}
-  for key, _ in pairs(_tool_tasks) do
+  for key, _ in pairs(self._tool_tasks) do
     if key:sub(1, #session_id + 1) == session_id .. ":" then
       task_keys_to_remove[#task_keys_to_remove + 1] = key
     end
   end
   for _, key in ipairs(task_keys_to_remove) do
-    _tool_tasks[key] = nil
+    self._tool_tasks[key] = nil
   end
 end
 
@@ -135,7 +148,7 @@ end
 ---@param request_id any JSON-RPC request ID
 ---@param task_id string Executor task ID
 function RequestStore:bind_tool_task(session_id, request_id, task_id)
-  _tool_tasks[_task_key(session_id, request_id)] = task_id
+  self._tool_tasks[_task_key(session_id, request_id)] = task_id
 end
 
 --- Look up the task_id for a (session, request) pair
@@ -143,14 +156,14 @@ end
 ---@param request_id any JSON-RPC request ID
 ---@return string|nil task_id
 function RequestStore:get_tool_task(session_id, request_id)
-  return _tool_tasks[_task_key(session_id, request_id)]
+  return self._tool_tasks[_task_key(session_id, request_id)]
 end
 
 --- Remove the binding after task completes or is cancelled
 ---@param session_id string
 ---@param request_id any JSON-RPC request ID
 function RequestStore:unbind_tool_task(session_id, request_id)
-  _tool_tasks[_task_key(session_id, request_id)] = nil
+  self._tool_tasks[_task_key(session_id, request_id)] = nil
 end
 
 return RequestStore

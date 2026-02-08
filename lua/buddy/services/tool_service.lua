@@ -72,9 +72,19 @@ function ToolService:call(session_id, params, request_id)
   local args = params.arguments or {}
   local progress_token = params._meta and params._meta.progressToken
 
-  -- Build executor options with context
+  -- Build executor options with context (no callback — sync dispatch path).
+  -- Async tools are detected by executor via cancel-function return value
+  -- or explicit context.start_async() declaration.
+  -- and are tracked for cancellation, but results are not delivered here.
+  --
+  -- NOTE (known limitation): Async tool outputs are dropped in the MCP tools/call
+  -- sync dispatch path. The handler returns an explicit error response immediately.
+  -- Real async result delivery requires making the dispatch chain nio-aware,
+  -- which is deferred to a future PR. All built-in buddy.nvim tools are synchronous.
   local exec_opts = {
     session_id = session_id,
+    request_id = request_id,
+    request_store = self._request_store,
     progress_token = progress_token,
     on_progress = progress_token and function(progress, total, message)
       self:_send_progress(session_id, progress_token, progress, total, message)
@@ -84,27 +94,24 @@ function ToolService:call(session_id, params, request_id)
   -- Execute tool
   local ok, result_or_err, task_id = pcall(self._executor.execute, tool_name, args, exec_opts)
 
-  -- Bind request → task for cancellation (if async tool returned a task_id)
-  if ok and task_id and request_id and session_id and self._request_store then
-    self._request_store:bind_tool_task(session_id, request_id, task_id)
-  end
-
   if not ok then
     return errors.to_mcp_response(result_or_err)
   end
 
-  -- Guard: async tools return a cancel function from the sync path.
-  -- This happens when a tool is async-only but called through the sync executor.
-  -- We can't serialize a function, so return an error instead.
-  if type(result_or_err) == "function" then
-    return errors.to_mcp_response("Tool '" .. tool_name .. "' requires async execution")
+  -- Request→task binding is handled by executor (bound before tool.run(),
+  -- unbound on completion/cancel/failure). No binding needed here.
+
+  -- Async tool: result is nil, task_id is set. Return an explicit error response
+  -- from sync tools/call so clients do not misinterpret this as final tool output.
+  if task_id then
+    return errors.to_mcp_response(errors.create(
+      errors.codes.EXECUTION_ERROR,
+      "Tool '" .. tool_name .. "' started asynchronously (task " .. task_id .. "), but sync tools/call does not support async results",
+      { tool = tool_name, task_id = task_id }
+    ))
   end
 
-  -- Unbind request → task now that tool completed
-  if task_id and request_id and session_id and self._request_store then
-    self._request_store:unbind_tool_task(session_id, request_id)
-  end
-
+  -- Sync tool completed — result_or_err is the actual result.
   return self:_shape_result(result_or_err, tool)
 end
 
