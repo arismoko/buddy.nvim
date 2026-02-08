@@ -145,7 +145,7 @@ T['tool_service']['sync tool does not create binding'] = function()
   MiniTest.expect.equality(store:get_tool_task("sess-1", 100), nil)
 end
 
-T['tool_service']['async tool gets bound for cancellation'] = function()
+T['tool_service']['async tool gets cancelled immediately in sync path'] = function()
   local RequestStore = require("buddy.runtime.state.request_store")
   local store = RequestStore.new()
 
@@ -167,17 +167,17 @@ T['tool_service']['async tool gets bound for cancellation'] = function()
   local ToolService = require("buddy.services.tool_service")
   local service = ToolService.new({ request_store = store })
 
-  -- Call should bind the task for cancellation
-  service:call("sess-1", { name = "_test_async_cancel" }, 200)
+  -- Call should detect async, cancel the task, and return error
+  local response = service:call("sess-1", { name = "_test_async_cancel" }, 200)
 
-  -- Async tool should have a binding
-  local task_id = store:get_tool_task("sess-1", 200)
-  MiniTest.expect.equality(type(task_id), "string")
+  -- Should return an error response
+  MiniTest.expect.equality(response.isError, true)
 
-  -- Cancel should work through the binding
-  local cancelled = service:cancel(task_id)
-  MiniTest.expect.equality(cancelled, true)
+  -- Cancel should have been called immediately by tool_service
   MiniTest.expect.equality(cancel_called, true)
+
+  -- Binding should be cleaned up (task was cancelled)
+  MiniTest.expect.equality(store:get_tool_task("sess-1", 200), nil)
 end
 
 T['tool_service']['cancel delegates to executor'] = function()
@@ -450,18 +450,16 @@ end
 -- ToolService: binding cleanup on async completion
 -- ────────────────────────────────────────────────────────────────
 
-T['tool_service']['async binding cleaned up on completion'] = function()
+T['tool_service']['async binding cleaned up immediately in sync path'] = function()
   local RequestStore = require("buddy.runtime.state.request_store")
   local store = RequestStore.new()
 
   local tools = require("buddy.tools")
-  local complete_fn
   tools.register({
     name = "_test_async_unbind",
     description = "Async tool for binding cleanup test",
     args = {},
     run = function(_args, context)
-      complete_fn = function(result) context(result) end
       return function() end
     end,
   })
@@ -469,16 +467,10 @@ T['tool_service']['async binding cleaned up on completion'] = function()
   local ToolService = require("buddy.services.tool_service")
   local service = ToolService.new({ request_store = store })
 
-  service:call("sess-1", { name = "_test_async_unbind" }, 500)
+  local response = service:call("sess-1", { name = "_test_async_unbind" }, 500)
 
-  -- Binding should exist while tool is running
-  local task_id = store:get_tool_task("sess-1", 500)
-  MiniTest.expect.equality(type(task_id), "string")
-
-  -- Complete the async tool
-  complete_fn({ done = true })
-
-  -- Binding should be cleaned up after completion
+  -- Async tool should be immediately cancelled and binding cleaned up
+  MiniTest.expect.equality(response.isError, true)
   MiniTest.expect.equality(store:get_tool_task("sess-1", 500), nil)
 end
 
@@ -573,7 +565,7 @@ T['tool_service']['async tool returns error response in sync path'] = function()
   MiniTest.expect.equality(response.content[1].type, "text")
   MiniTest.expect.equality(type(response.content[1].text), "string")
   MiniTest.expect.equality(response.content[1].text:find("_test_async_response", 1, true) ~= nil, true)
-  MiniTest.expect.equality(response.content[1].text:find("sync tools/call does not support async results", 1, true) ~= nil, true)
+  MiniTest.expect.equality(response.content[1].text:find("async and cannot be invoked via sync tools/call", 1, true) ~= nil, true)
 end
 
 return T

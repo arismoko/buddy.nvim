@@ -92,6 +92,11 @@ function M.execute(tool_id, args, opts)
   end
 
   local async_declared = false
+  -- When start_async() is active, defer context(result) calls until after
+  -- run() returns so the mixed-mode guard can reject invalid contracts
+  -- BEFORE any success is delivered.
+  local deferred_result = nil  -- { result = <value> } when pending
+  local deferred_delivered = false
 
   -- Make progress callback available to tool run function
   local context = {
@@ -128,25 +133,41 @@ function M.execute(tool_id, args, opts)
     end
   end
 
+  -- Deliver a completion result: invoke async_callback or clean up running_tasks.
+  -- Also unbinds request→task mapping to prevent binding leaks.
+  local function _deliver_result(result)
+    if async_callback then
+      async_callback(result)
+    else
+      -- No external callback — still clean up running_tasks
+      local task = running_tasks[task_id]
+      if task and not task.cancelled then
+        log.debug("Async tool %s completed without callback (task %s)", tool_id, task_id)
+        running_tasks[task_id] = nil
+      end
+    end
+    -- Unbind request→task mapping on completion (prevents binding leak)
+    if opts.request_store and opts.session_id and opts.request_id then
+      opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
+    end
+  end
+
   -- Allow tools to use context as a callback for async completion.
   -- Even without an external callback, clean up the running_tasks entry
   -- and unbind from request_store if available.
+  --
+  -- When start_async() has been called, defer delivery until after run()
+  -- returns so the mixed-mode contract guard can reject before success
+  -- is delivered.
   setmetatable(context, {
     __call = function(_, result)
-      if async_callback then
-        async_callback(result)
-      else
-        -- No external callback — still clean up running_tasks
-        local task = running_tasks[task_id]
-        if task and not task.cancelled then
-          log.debug("Async tool %s completed without callback (task %s)", tool_id, task_id)
-          running_tasks[task_id] = nil
-        end
+      if async_declared and not deferred_delivered then
+        -- Buffer the result; it will be flushed after run() returns
+        -- and contract validation passes.
+        deferred_result = { result = result }
+        return
       end
-      -- Unbind request→task mapping on completion (prevents binding leak)
-      if opts.request_store and opts.session_id and opts.request_id then
-        opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
-      end
+      _deliver_result(result)
     end,
   })
 
@@ -192,11 +213,49 @@ function M.execute(tool_id, args, opts)
       -- The placeholder was cleaned up by async_callback or context __call.
       log.debug("Tool %s completed synchronously inside run() (task %s)", tool_id, task_id)
     end
+
+    -- Transition deferred state so context() calls deliver immediately from
+    -- this point on (prevents permanent deferral when start_async() was also
+    -- called).  Flush any result that was buffered during run().
+    if async_declared then
+      deferred_delivered = true
+      if deferred_result then
+        _deliver_result(deferred_result.result)
+        deferred_result = nil
+      end
+    end
+
     return nil, task_id
   end
 
   -- Async tool explicitly declared via context.start_async().
   if async_declared then
+    -- Mixed-mode guard: if start_async() was called but run() returned a
+    -- non-nil, non-function value, that's a programming error — the tool is
+    -- confused about its sync/async contract. Clean up and throw WITHOUT
+    -- delivering any deferred result.
+    if cancel_or_result ~= nil then
+      -- Discard any deferred result — contract is invalid.
+      deferred_result = nil
+      running_tasks[task_id] = nil
+      if opts.request_store and opts.session_id and opts.request_id then
+        opts.request_store:unbind_tool_task(opts.session_id, opts.request_id)
+      end
+      errors.throw(
+        errors.codes.EXECUTION_ERROR,
+        "Tool '" .. tool_id .. "' called context.start_async() but also returned a value; "
+          .. "async tools must return nil (got " .. type(cancel_or_result) .. ")",
+        { tool = tool_id }
+      )
+    end
+
+    -- Contract is valid. Flush any deferred completion from context() calls
+    -- that happened inside run().
+    deferred_delivered = true
+    if deferred_result then
+      _deliver_result(deferred_result.result)
+    end
+
     local task = running_tasks[task_id]
     if task then
       log.debug("Tool %s declared async (task %s)", tool_id, task_id)

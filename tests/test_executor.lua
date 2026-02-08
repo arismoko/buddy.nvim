@@ -144,4 +144,361 @@ T['list_running()']['returns empty list initially'] = function()
   MiniTest.expect.equality(#executor.list_running(), 0)
 end
 
+-- Async via cancel function return
+T['execute()']['async via cancel fn returns nil and task_id'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-cancel-tool',
+    description = 'Async tool with cancel fn',
+    run = function(_, _context)
+      return function() end  -- cancel function
+    end,
+  })
+
+  local result, task_id = executor.execute('async-cancel-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Task should be tracked
+  local running = executor.list_running()
+  MiniTest.expect.equality(#running, 1)
+  MiniTest.expect.equality(running[1].tool_id, 'async-cancel-tool')
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- Async via context.start_async()
+T['execute()']['async via start_async returns nil and task_id'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-start-tool',
+    description = 'Async tool with start_async',
+    run = function(_, context)
+      context.start_async()
+      return nil
+    end,
+  })
+
+  local result, task_id = executor.execute('async-start-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- Mixed-mode: start_async + non-nil return is an error
+T['execute()']['start_async with non-nil return throws'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-tool',
+    description = 'Mixed-mode tool (broken)',
+    run = function(_, context)
+      context.start_async()
+      return { result = "should not be here" }  -- non-nil, non-function
+    end,
+  })
+
+  MiniTest.expect.error(function()
+    executor.execute('mixed-mode-tool', {})
+  end)
+
+  -- Ensure no leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- start_async + function return uses cancel-fn branch precedence
+T['execute()']['start_async with function return uses cancel-fn precedence'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  -- Note: a function return is caught FIRST by the cancel-fn branch (line 184),
+  -- so start_async + function return works — the cancel-fn takes precedence.
+  -- This is the documented behavior: return function = async (cancel fn branch).
+  -- start_async is only checked when return is NOT a function.
+
+  tools.register({
+    name = 'start-async-fn-tool',
+    description = 'start_async + cancel fn',
+    run = function(_, context)
+      context.start_async()
+      return function() end
+    end,
+  })
+
+  -- This should NOT throw — cancel fn branch takes precedence
+  local result, task_id = executor.execute('start-async-fn-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.equality(result, nil)
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Clean up
+  executor.cancel(task_id)
+end
+
+-- Regression: start_async + function return + immediate context(result) delivers and no leak
+T['execute()']['start_async + fn return + immediate context delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'async-fn-imm-ctx',
+    description = 'start_async + cancel fn + immediate context(result)',
+    run = function(_, context)
+      context.start_async()
+      context({ immediate = true })
+      return function() end  -- cancel function
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('async-fn-imm-ctx', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Callback should have been invoked with the deferred result (flushed after run)
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { immediate = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Regression: start_async + function return + late context(result) delivers and no leak
+T['execute()']['start_async + fn return + late context delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local complete_fn
+
+  tools.register({
+    name = 'async-fn-late-ctx',
+    description = 'start_async + cancel fn + late context(result)',
+    run = function(_, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return function() end  -- cancel function
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('async-fn-late-ctx', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+  -- No callback yet — context() not called inside run()
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- Task should still be running (not leaked, not prematurely cleaned)
+  MiniTest.expect.equality(#executor.list_running(), 1)
+
+  -- Late completion after run() returned
+  complete_fn({ late = true })
+
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { late = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- start_async with cancel_fn argument
+T['execute()']['start_async with cancel_fn arg registers it'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local cancel_called = false
+
+  tools.register({
+    name = 'async-cancel-arg-tool',
+    description = 'Async with cancel fn arg',
+    run = function(_, context)
+      context.start_async(function()
+        cancel_called = true
+      end)
+      return nil
+    end,
+  })
+
+  local _, task_id = executor.execute('async-cancel-arg-tool', {}, {
+    callback = function() end,
+  })
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Cancel should invoke the cancel fn
+  executor.cancel(task_id)
+  MiniTest.expect.equality(cancel_called, true)
+end
+
+-- start_async rejects non-function, non-nil argument
+T['execute()']['start_async rejects non-function argument'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'start-async-bad-arg',
+    description = 'start_async with bad arg',
+    run = function(_, context)
+      context.start_async("not a function")
+      return nil
+    end,
+  })
+
+  MiniTest.expect.error(function()
+    executor.execute('start-async-bad-arg', {})
+  end)
+end
+
+-- Mixed-mode guard with deferred delivery:
+-- start_async() + context(result) inside run() + non-nil return → error, not success
+T['execute()']['start_async + context(result) + non-nil return is error not success'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-deferred',
+    description = 'Mixed-mode: start_async, deliver, then return value',
+    run = function(_, context)
+      context.start_async()
+      context({ success = true, data = "should be discarded" })
+      return { bad = true }  -- contract violation
+    end,
+  })
+
+  -- Via execute() with callback: should throw, callback should NOT receive success
+  local callback_calls = {}
+  MiniTest.expect.error(function()
+    executor.execute('mixed-mode-deferred', {}, {
+      callback = function(err, result)
+        table.insert(callback_calls, { err = err, result = result })
+      end,
+    })
+  end)
+
+  -- Callback should never have been called with the deferred result
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Same scenario via execute_async: future resolves as error, not success
+T['execute()']['execute_async: start_async + context(result) + non-nil return resolves as error'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-async-future',
+    description = 'Mixed-mode via execute_async',
+    run = function(_, context)
+      context.start_async()
+      context({ success = true, data = "should be discarded" })
+      return { bad = true }  -- contract violation
+    end,
+  })
+
+  local future, task_id = executor.execute_async('mixed-mode-async-future', {})
+
+  -- Future should be set (error path)
+  MiniTest.expect.equality(future.is_set(), true)
+  local packed = future.wait()
+
+  -- Should be an error, NOT a success result
+  MiniTest.expect.no_equality(packed.error, nil)
+  MiniTest.expect.equality(packed.result, nil)
+
+  -- task_id should be nil (thrown synchronously, no async tracking)
+  MiniTest.expect.equality(task_id, nil)
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Deferred delivery works for valid contract: start_async + context(result) + return nil
+T['execute()']['start_async + context(result) + return nil delivers result'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'deferred-valid',
+    description = 'Valid: start_async, deliver inside run, return nil',
+    run = function(_, context)
+      context.start_async()
+      context({ deferred = true })
+      return nil
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('deferred-valid', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Callback should have been invoked with the deferred result
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { deferred = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Post-run context() calls still work for start_async tools (non-deferred path)
+T['execute()']['start_async late context() call still delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local complete_fn
+
+  tools.register({
+    name = 'deferred-late',
+    description = 'start_async with late completion',
+    run = function(_, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return nil
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('deferred-late', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+  -- No callback yet — context() not called inside run()
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- Late completion after run() returned
+  complete_fn({ late = true })
+
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].result, { late = true })
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 return T

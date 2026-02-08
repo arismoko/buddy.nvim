@@ -43,7 +43,7 @@ return {
         required = { "name" },
       },
       run = function(args)
-        return { content = { { type = "text", text = "Hello, " .. args.name } } }
+        return "Hello, " .. args.name
       end,
     },
   }
@@ -81,12 +81,12 @@ return {
 
     if action == "chart" then
       -- handle chart
-      return { content = { { type = "text", text = "Chart rendered" } } }
+      return { rendered = true, chart_type = args.type }
     elseif action == "image" then
       -- handle image
-      return { content = { { type = "text", text = "Image displayed" } } }
+      return { rendered = true, path = args.path }
     else
-      return { isError = true, content = { { type = "text", text = "Unknown action: " .. action } } }
+      error("Unknown action: " .. action)
     end
   end,
 }
@@ -167,53 +167,115 @@ Now your tool:
 For long-running operations, either return a cancel function or explicitly
 declare async mode with `context.start_async()`:
 
+### Option 1: Return a Cancel Function
+
+Return a function from `run()` to signal async mode. The function is used for
+cancellation. Call `context(result)` when the work completes.
+
 ```lua
 run = function(args, context)
   -- Start async work
   local handle = start_async_operation(function(result)
     context(result)  -- Call context to complete
   end)
-  -- Return cancel function
+  -- Return cancel function (signals async mode)
   return function()
     handle:cancel()
   end
 end
 ```
 
-For non-cancellable async work, call `context.start_async()` before returning:
+### Option 2: Declare Async with `context.start_async()`
+
+For non-cancellable async work (or when you want to provide a cancel function
+separately), call `context.start_async()` before returning:
 
 ```lua
 run = function(args, context)
-  context.start_async()
+  context.start_async()  -- optional: context.start_async(cancel_fn)
   start_async_operation(function(result)
     context(result)
   end)
-  return nil
+  return nil  -- MUST return nil when start_async() was called
 end
 ```
 
+!!! warning "Return Contract"
+    When `context.start_async()` is called, `run()` **must** return `nil`.
+    Returning a non-nil value after calling `start_async()` is a programming
+    error and will raise an exception.
+
+    When using Option 1 (return cancel function), do **not** also call
+    `context.start_async()` — the return value already signals async mode.
+    If both are used, the returned cancel function takes precedence.
+
+!!! note "Sync tools/call"
+    The MCP `tools/call` endpoint is synchronous. Async tools invoked via
+    `tools/call` are immediately cancelled and an error response is returned.
+    Async tools are intended for use via the callback-based `execute()` or
+    `execute_async()` APIs.
+
 ## Returning Results
 
-### Simple Success
+Tools return **raw Lua values** from `run()`. buddy.nvim automatically wraps
+them into MCP-compatible responses — you do **not** return MCP envelope objects
+(like `{ content = { ... } }`) directly.
+
+### String Results
+
+Returned as-is in a text content block:
+
+```lua
+return "Hello, world!"
+-- → MCP response: { content = [{ type = "text", text = "Hello, world!" }] }
+```
+
+### Table Results
+
+JSON-encoded into a text content block:
 
 ```lua
 return { success = true, data = "result" }
+-- → MCP response: { content = [{ type = "text", text = "{\"success\":true,\"data\":\"result\"}" }] }
 ```
 
-### MCP-Formatted Content
+### Nil Results
+
+Returned as the string `"nil"`:
+
+```lua
+return nil
+-- → MCP response: { content = [{ type = "text", text = "nil" }] }
+```
+
+### Structured Output (with output_schema)
+
+If your tool defines `output_schema`, the table result is also included as
+`structuredContent` in the MCP response:
 
 ```lua
 return {
-  content = {
-    { type = "text", text = "Hello, world!" },
-  }
+  name = "my_tool",
+  output_schema = { type = "object", properties = { count = { type = "number" } } },
+  run = function(args)
+    return { count = 42 }
+    -- → MCP response: { content = [...], structuredContent = { count = 42 } }
+  end,
 }
 ```
 
 ### Errors
 
+To signal a tool error, use `error()` or the structured error API:
+
 ```lua
-return { success = false, error = "Something went wrong" }
+local errors = require("buddy.tools.errors")
+
+-- Option 1: Simple error (becomes isError MCP response)
+error("Something went wrong")
+
+-- Option 2: Structured error with code
+errors.throw(errors.codes.EXECUTION_ERROR, "Something went wrong", { detail = "..." })
 ```
 
 ## Testing Tools
