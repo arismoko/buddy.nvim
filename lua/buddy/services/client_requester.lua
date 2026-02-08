@@ -1,5 +1,8 @@
 -- Transport-agnostic server→client request/response handling
 -- Enables sampling, elicitation, and roots requests without SSE coupling
+-- Uses nvim-nio futures for non-blocking async request/response matching
+
+local nio = require("buddy.dep.nio")
 
 ---@class ClientRequester
 ---@field _send_fn fun(session_id:string, msg:table):boolean
@@ -10,9 +13,8 @@ ClientRequester.__index = ClientRequester
 
 ---@class PendingServiceRequest
 ---@field session_id string
----@field resolve fun(result: any)
----@field reject fun(error: any)
----@field timer userdata|nil
+---@field future table nio.control.future instance
+---@field cancelled boolean
 
 --- Create a new ClientRequester
 ---@param opts table { send_fn: fun(session_id:string, msg:table):boolean }
@@ -34,62 +36,108 @@ function ClientRequester:_generate_id()
   return id
 end
 
---- Send a synchronous request to client (blocks via vim.wait)
+--- Sentinel returned by timeout branch of nio.first race
+local _TIMEOUT = {}
+
+--- Send a request to client and await response (async, must be called in nio coroutine)
 ---@param session_id string
 ---@param method string
 ---@param params table
 ---@param timeout_ms? number Default 30000
 ---@return any result
----@return string|nil error
-function ClientRequester:request_sync(session_id, method, params, timeout_ms)
+---@return string|table|nil error
+function ClientRequester:request(session_id, method, params, timeout_ms)
+  -- Guard: must be called inside a nio coroutine
+  if not coroutine.running() then
+    return nil, "request() must be called inside a nio coroutine; use request_sync() from non-async context"
+  end
+
   timeout_ms = timeout_ms or 30000
 
   local id = self:_generate_id()
-  local result, err
-  local done = false
+  local future = nio.control.future()
 
   -- Create pending request entry
   self._pending[id] = {
     session_id = session_id,
-    resolve = function(res)
-      result = res
-      done = true
-    end,
-    reject = function(e)
-      err = e
-      done = true
-    end,
-    timer = nil,
+    future = future,
+    cancelled = false,
   }
 
-  -- Set timeout
-  self._pending[id].timer = vim.uv.new_timer()
-  self._pending[id].timer:start(timeout_ms, 0, vim.schedule_wrap(function()
-    if self._pending[id] then
-      self._pending[id].reject({ code = -32000, message = "Request timeout" })
-      self:_cleanup(id)
-    end
-  end))
-
-  -- Send request via injected transport
-  local request = {
+  -- Send request via injected transport (pcall to prevent leak on throw)
+  local rpc_msg = {
     jsonrpc = "2.0",
     id = id,
     method = method,
     params = params or {},
   }
 
-  local ok = self._send_fn(session_id, request)
-  if not ok then
+  local send_ok, send_result = pcall(self._send_fn, session_id, rpc_msg)
+  if not send_ok then
+    self:_cleanup(id)
+    return nil, "Send failed: " .. tostring(send_result)
+  end
+  if not send_result then
     self:_cleanup(id)
     return nil, "Failed to send request"
   end
 
-  -- Block until response or timeout
-  vim.wait(timeout_ms + 100, function() return done end, 10)
+  -- Race: wait for response vs timeout (tagged return, no mutable flags)
+  local result = nio.first({
+    -- Branch 1: wait for the response future
+    function()
+      return future.wait()
+    end,
+    -- Branch 2: timeout — return sentinel to distinguish from nil response
+    function()
+      nio.sleep(timeout_ms)
+      return _TIMEOUT
+    end,
+  })
+
+  self:_cleanup(id)
+
+  if result == _TIMEOUT then
+    return nil, "Request timeout"
+  end
+
+  -- future.wait() returns packed response: {value=...} or {_is_error=true, error=...}
+  if result and result._is_error then
+    return nil, result.error
+  end
+
+  return result and result.value, nil
+end
+
+--- Send a synchronous request to client (blocks, works outside nio context)
+--- Internally launches a nio coroutine and waits for completion.
+---@param session_id string
+---@param method string
+---@param params table
+---@param timeout_ms? number Default 30000
+---@return any result
+---@return string|table|nil error
+function ClientRequester:request_sync(session_id, method, params, timeout_ms)
+  timeout_ms = timeout_ms or 30000
+
+  local result, err
+  local done = false
+
+  nio.run(function()
+    result, err = self:request(session_id, method, params, timeout_ms)
+  end, function(success, ...)
+    if not success then
+      err = tostring(...)
+    end
+    done = true
+  end)
+
+  -- Block the Neovim event loop until the nio task completes
+  vim.wait(timeout_ms + 500, function()
+    return done
+  end, 10)
 
   if not done then
-    self:_cleanup(id)
     return nil, "Request timeout"
   end
 
@@ -104,34 +152,22 @@ function ClientRequester:is_response(msg)
 end
 
 --- Handle a response message from client
+--- Resolves the future for the matching pending request
 ---@param msg table JSON-RPC response
 function ClientRequester:handle_response(msg)
+  local req = self._pending[msg.id]
+  if not req then
+    return
+  end
+
+  if req.future.is_set() then
+    return
+  end
+
   if msg.error then
-    self:_reject(msg.id, msg.error)
+    req.future.set({ _is_error = true, error = msg.error })
   else
-    self:_resolve(msg.id, msg.result)
-  end
-end
-
---- Resolve a pending request
----@param id string Request ID
----@param result any
-function ClientRequester:_resolve(id, result)
-  local req = self._pending[id]
-  if req then
-    req.resolve(result)
-    self:_cleanup(id)
-  end
-end
-
---- Reject a pending request
----@param id string Request ID
----@param error any
-function ClientRequester:_reject(id, error)
-  local req = self._pending[id]
-  if req then
-    req.reject(error)
-    self:_cleanup(id)
+    req.future.set({ value = msg.result })
   end
 end
 
@@ -140,10 +176,7 @@ end
 function ClientRequester:_cleanup(id)
   local req = self._pending[id]
   if req then
-    if req.timer then
-      req.timer:stop()
-      req.timer:close()
-    end
+    req.cancelled = true
     self._pending[id] = nil
   end
 end
@@ -159,8 +192,8 @@ function ClientRequester:cleanup_session(session_id)
   end
   for _, id in ipairs(to_cleanup) do
     local req = self._pending[id]
-    if req then
-      req.reject({ code = -32000, message = "Session closed" })
+    if req and not req.future.is_set() then
+      req.future.set({ _is_error = true, error = { code = -32000, message = "Session closed" } })
     end
     self:_cleanup(id)
   end

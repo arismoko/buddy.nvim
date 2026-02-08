@@ -25,7 +25,10 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 ```lua
 {
   "arismoko/buddy.nvim",
-  dependencies = { "echasnovski/mini.nvim" },
+  dependencies = {
+    "echasnovski/mini.nvim",
+    "nvim-neotest/nvim-nio",
+  },
   lazy = false,
   config = function()
     require("buddy").setup({
@@ -41,7 +44,10 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 ```lua
 use {
   "arismoko/buddy.nvim",
-  requires = { "echasnovski/mini.nvim" },
+  requires = {
+    "echasnovski/mini.nvim",
+    "nvim-neotest/nvim-nio",
+  },
   config = function()
     require("buddy").setup({
       auto_start = true,
@@ -375,6 +381,7 @@ buddy.register_tool({
 
 - **Neovim 0.10+**
 - **mini.nvim** (dependency)
+- **nvim-nio** (dependency — async operations)
 
 ---
 

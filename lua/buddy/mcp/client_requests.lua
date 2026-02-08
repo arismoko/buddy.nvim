@@ -1,5 +1,6 @@
 -- Client Requests: Compatibility wrapper delegating to services/client_requester
 -- Preserves existing API for callers (roots.lua, sampling.lua, elicitation.lua)
+-- Offers both sync (request) and async (request_async) paths.
 
 local M = {}
 
@@ -23,15 +24,26 @@ local function get_requester()
   return _requester
 end
 
---- Send a request to client and wait for response
+--- Send a request to client and wait for response (sync, blocks via nio.run + vim.wait)
 ---@param session_id string
 ---@param method string
 ---@param params table
 ---@param timeout_ms? number Default 30000
 ---@return any result
----@return string|nil error
+---@return string|table|nil error
 function M.request(session_id, method, params, timeout_ms)
   return get_requester():request_sync(session_id, method, params, timeout_ms)
+end
+
+--- Send a request to client (async, must be called inside nio coroutine)
+---@param session_id string
+---@param method string
+---@param params table
+---@param timeout_ms? number Default 30000
+---@return any result
+---@return string|table|nil error
+function M.request_async(session_id, method, params, timeout_ms)
+  return get_requester():request(session_id, method, params, timeout_ms)
 end
 
 --- Check if a message is a response to a pending request
@@ -63,7 +75,7 @@ end
 --- Send ping to client (server-initiated)
 ---@param session_id string
 ---@return table|nil result Empty object on success
----@return string|nil error
+---@return string|table|nil error
 function M.ping(session_id)
   return M.request(session_id, "ping", {}, 5000)
 end
@@ -71,7 +83,7 @@ end
 --- Request workspace roots from client
 ---@param session_id string
 ---@return table|nil result { roots = { { uri, name? }... } }
----@return string|nil error
+---@return string|table|nil error
 function M.roots_list(session_id)
   return M.request(session_id, "roots/list", {}, 10000)
 end
@@ -80,7 +92,7 @@ end
 ---@param session_id string
 ---@param params table { messages, modelPreferences?, systemPrompt?, ... }
 ---@return table|nil result { model, stopReason, role, content }
----@return string|nil error
+---@return string|table|nil error
 function M.sampling_create_message(session_id, params)
   return M.request(session_id, "sampling/createMessage", params, 60000)
 end
@@ -89,7 +101,7 @@ end
 ---@param session_id string
 ---@param params table { message, requestedSchema }
 ---@return table|nil result { action, content? }
----@return string|nil error
+---@return string|table|nil error
 function M.elicitation_create(session_id, params)
   return M.request(session_id, "elicitation/create", params, 120000)
 end
