@@ -294,4 +294,137 @@ T['execute()']['start_async rejects non-function argument'] = function()
   end)
 end
 
+-- Mixed-mode guard with deferred delivery:
+-- start_async() + context(result) inside run() + non-nil return → error, not success
+T['execute()']['start_async + context(result) + non-nil return is error not success'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-deferred',
+    description = 'Mixed-mode: start_async, deliver, then return value',
+    run = function(_, context)
+      context.start_async()
+      context({ success = true, data = "should be discarded" })
+      return { bad = true }  -- contract violation
+    end,
+  })
+
+  -- Via execute() with callback: should throw, callback should NOT receive success
+  local callback_calls = {}
+  MiniTest.expect.error(function()
+    executor.execute('mixed-mode-deferred', {}, {
+      callback = function(err, result)
+        table.insert(callback_calls, { err = err, result = result })
+      end,
+    })
+  end)
+
+  -- Callback should never have been called with the deferred result
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Same scenario via execute_async: future resolves as error, not success
+T['execute()']['execute_async: start_async + context(result) + non-nil return resolves as error'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'mixed-mode-async-future',
+    description = 'Mixed-mode via execute_async',
+    run = function(_, context)
+      context.start_async()
+      context({ success = true, data = "should be discarded" })
+      return { bad = true }  -- contract violation
+    end,
+  })
+
+  local future, task_id = executor.execute_async('mixed-mode-async-future', {})
+
+  -- Future should be set (error path)
+  MiniTest.expect.equality(future.is_set(), true)
+  local packed = future.wait()
+
+  -- Should be an error, NOT a success result
+  MiniTest.expect.no_equality(packed.error, nil)
+  MiniTest.expect.equality(packed.result, nil)
+
+  -- task_id should be nil (thrown synchronously, no async tracking)
+  MiniTest.expect.equality(task_id, nil)
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Deferred delivery works for valid contract: start_async + context(result) + return nil
+T['execute()']['start_async + context(result) + return nil delivers result'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+
+  tools.register({
+    name = 'deferred-valid',
+    description = 'Valid: start_async, deliver inside run, return nil',
+    run = function(_, context)
+      context.start_async()
+      context({ deferred = true })
+      return nil
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('deferred-valid', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+
+  -- Callback should have been invoked with the deferred result
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].err, nil)
+  MiniTest.expect.equality(callback_calls[1].result, { deferred = true })
+
+  -- No leaked tasks
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
+-- Post-run context() calls still work for start_async tools (non-deferred path)
+T['execute()']['start_async late context() call still delivers'] = function()
+  local tools = get_tools()
+  local executor = get_executor()
+  local complete_fn
+
+  tools.register({
+    name = 'deferred-late',
+    description = 'start_async with late completion',
+    run = function(_, context)
+      context.start_async()
+      complete_fn = function(result) context(result) end
+      return nil
+    end,
+  })
+
+  local callback_calls = {}
+  local _, task_id = executor.execute('deferred-late', {}, {
+    callback = function(err, result)
+      table.insert(callback_calls, { err = err, result = result })
+    end,
+  })
+
+  MiniTest.expect.no_equality(task_id, nil)
+  -- No callback yet — context() not called inside run()
+  MiniTest.expect.equality(#callback_calls, 0)
+
+  -- Late completion after run() returned
+  complete_fn({ late = true })
+
+  MiniTest.expect.equality(#callback_calls, 1)
+  MiniTest.expect.equality(callback_calls[1].result, { late = true })
+  MiniTest.expect.equality(#executor.list_running(), 0)
+end
+
 return T
