@@ -236,21 +236,39 @@ function M.call(tool_name, args)
 end
 
 --- Register a tool programmatically
----@param tool table Tool definition with name, description, args, required, and run function
+---@param tool table Tool definition with name, description, run function, and either input_schema or args/required
 ---@param opts? table Optional configuration to pass to the tool
 function M.register_tool(tool, opts)
   if not tool or not tool.name then
     error("Tool must have a name")
   end
-  
+
   local registry = require("buddy.tools")
-  
+
+  local args = tool.args or {}
+  local required = tool.required or {}
+  local input_schema = tool.input_schema
+
+  -- Backward compatibility: synthesize input_schema from legacy args/required
+  -- so tools/list can always expose a discoverable JSON schema.
+  if not input_schema then
+    input_schema = {
+      type = "object",
+      properties = args,
+      required = required,
+    }
+  end
+
   local tool_def = {
     id = tool.name,
     name = tool.name,
     description = tool.description,
-    args = tool.args or {},
-    required = tool.required or {},
+    args = args,
+    required = required,
+    input_schema = input_schema,
+    output_schema = tool.output_schema,
+    title = tool.title,
+    annotations = tool.annotations,
     runtime = "plugin",  -- Mark as plugin-registered (not from tools_dir)
     run = tool.run,
     setup = tool.setup,

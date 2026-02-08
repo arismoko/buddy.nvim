@@ -42,16 +42,16 @@ return {
     -- Validate name is snake_case
     if not name:match("^[a-z][a-z0-9_]*$") then
       return {
-        isError = true,
-        content = { { type = "text", text = "Invalid name: must be snake_case (lowercase letters, numbers, underscores)" } },
+        success = false,
+        error = "Invalid name: must be snake_case (lowercase letters, numbers, underscores)",
       }
     end
 
     -- Check if already exists
     if vim.fn.isdirectory(dest) == 1 then
       return {
-        isError = true,
-        content = { { type = "text", text = "Tool already exists at: " .. dest } },
+        success = false,
+        error = "Tool already exists at: " .. dest,
       }
     end
 
@@ -61,8 +61,8 @@ return {
 
     if vim.fn.isdirectory(template_dir) == 0 then
       return {
-        isError = true,
-        content = { { type = "text", text = "Template directory not found at: " .. template_dir } },
+        success = false,
+        error = "Template directory not found at: " .. template_dir,
       }
     end
 
@@ -113,19 +113,17 @@ Structure:
     plugin/%s.lua     -- Commands & keymaps (entry point)
     lua/
       %s/
+        buddy.lua     -- MCP tool definition for AI agents
         init.lua      -- Public API (M.setup, M.run, etc.)
         config.lua    -- Configuration with defaults
-      buddy.lua       -- MCP tool definition for AI agents
 
 Next steps:
 1. Add to runtimepath or install via plugin manager
 2. Customize the plugin logic in lua/%s/init.lua
-3. Update MCP schema in lua/buddy.lua if needed]],
-      name, dest, name, name, name, name
+3. Update MCP schema in lua/%s/buddy.lua if needed]],
+      name, dest, name, name, name, name, name
     )
 
-    return {
-      content = { { type = "text", text = msg } },
-    }
+    return { success = true, message = msg, path = dest }
   end,
 }

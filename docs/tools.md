@@ -50,6 +50,60 @@ Read and list Neovim buffers.
 | `offset` | number | No | Line number to start reading from (0-based). For `get_content` |
 | `limit` | number | No | Number of lines to read (defaults to 2000). For `get_content` |
 
+### MCP Examples
+
+**List all buffers:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "buffer",
+    "arguments": { "action": "list" }
+  }
+}
+```
+
+Response (raw tool return — buddy.nvim wraps this in MCP `content`):
+
+```json
+{
+  "success": true,
+  "buffers": [
+    { "bufnr": 1, "name": "/home/user/project/init.lua", "modified": false, "filetype": "lua" },
+    { "bufnr": 3, "name": "/home/user/project/README.md", "modified": true, "filetype": "markdown" }
+  ]
+}
+```
+
+**Read buffer content with pagination:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "buffer",
+    "arguments": { "action": "get_content", "bufnr": 1, "offset": 0, "limit": 100 }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "bufnr": 1,
+  "name": "/home/user/project/init.lua",
+  "content": "00001| local M = {}\n00002| \n00003| function M.setup()\n...",
+  "line_count": 250,
+  "offset": 0,
+  "limit": 100,
+  "showing": 100,
+  "has_more": true
+}
+```
+
 ---
 
 ## edit
@@ -76,6 +130,70 @@ Edit buffer content.
 - **replace_all**: Replace entire buffer content
 - **replace_match**: Find and replace text (recommended for precise edits)
 
+### MCP Examples
+
+**Find-and-replace text (recommended):**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "edit",
+    "arguments": {
+      "action": "replace_match",
+      "oldString": "local old_var = 1",
+      "newString": "local new_var = 42"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "action": "replace_match", "replaced": 1 }
+```
+
+**Insert lines at position:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "edit",
+    "arguments": {
+      "action": "insert",
+      "line": 5,
+      "content": "-- New comment\nlocal x = 1"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "inserted": 2 }
+```
+
+**Delete a line range:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "edit",
+    "arguments": { "action": "delete", "line": 10, "end_line": 15 }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "deleted": 6 }
+```
+
 ---
 
 ## command
@@ -87,6 +205,44 @@ Execute Vim commands.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `cmd` | string | Yes | The Vim command to execute (e.g., `write`, `edit file.txt`, `split`) |
+
+### MCP Examples
+
+**Save the current file:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "command",
+    "arguments": { "cmd": "write" }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "cmd": "write", "output": "\"init.lua\" 42L, 1234B written" }
+```
+
+**Run a Lua expression:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "command",
+    "arguments": { "cmd": "lua vim.fn.getcwd()" }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "cmd": "lua vim.fn.getcwd()", "result": "/home/user/project" }
+```
 
 ---
 
@@ -102,7 +258,7 @@ Navigate Neovim: marks, jumps, and cursor movement.
 | `line` | number | No | Line number (1-indexed) for `goto_line` or `set_mark` |
 | `column` | number | No | Column number (0-indexed) |
 | `file` | string | No | File path for `goto_file` |
-| `mark` | string | No | Mark character (a-z) |
+| `mark` | string | No | Mark character (a-z or A-Z) |
 
 ### Actions
 
@@ -110,11 +266,49 @@ Navigate Neovim: marks, jumps, and cursor movement.
 |--------|-------------|
 | `goto_line` | Jump to line |
 | `goto_file` | Open file |
-| `set_mark` | Set mark |
-| `goto_mark` | Jump to mark |
+| `set_mark` | Set mark (a-z only) |
+| `goto_mark` | Jump to mark (a-z or A-Z) |
 | `jump_back` | Go back in jumplist |
 | `jump_forward` | Go forward in jumplist |
 | `jump_list` | List jumps |
+
+### MCP Examples
+
+**Open a file:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "navigation",
+    "arguments": { "action": "goto_file", "file": "lua/buddy/init.lua" }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "file": "lua/buddy/init.lua" }
+```
+
+**Jump to a line:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "navigation",
+    "arguments": { "action": "goto_line", "line": 42, "column": 0 }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "line": 42, "column": 0 }
+```
 
 ---
 
@@ -133,6 +327,49 @@ Search and replace in current buffer.
 | `ignore_case` | boolean | No | Case insensitive search |
 | `whole_word` | boolean | No | Match whole words only |
 
+### MCP Examples
+
+**Search for a pattern:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search",
+    "arguments": { "action": "find", "pattern": "TODO", "ignore_case": true }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "pattern": "TODO", "total": 3, "incomplete": false }
+```
+
+**Find and replace:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search",
+    "arguments": {
+      "action": "find_replace",
+      "pattern": "old_name",
+      "replacement": "new_name",
+      "global": true
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{ "success": true, "pattern": "old_name", "replacement": "new_name", "message": "3 substitutions on 3 lines" }
+```
+
 ---
 
 ## grep
@@ -147,6 +384,39 @@ Project-wide search using vimgrep with quickfix list.
 | `file_pattern` | string | No | File pattern (default: `**/*`) |
 | `path` | string | No | Directory to search in (default: current working directory) |
 
+### MCP Examples
+
+**Search project for a pattern:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "grep",
+    "arguments": { "pattern": "require.*buddy", "file_pattern": "**/*.lua" }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "pattern": "require.*buddy",
+  "file_pattern": "**/*.lua",
+  "matches": [
+    { "filename": "lua/buddy/init.lua", "lnum": 3, "text": "local log = require(\"buddy.log\")" },
+    { "filename": "lua/buddy/config.lua", "lnum": 1, "text": "--- Configuration for buddy" }
+  ],
+  "total": 15,
+  "showing": 10
+}
+```
+
+!!! note "Result limit"
+    Grep returns up to 10 matches in the response. All matches are available in the quickfix list (`:copen`).
+
 ---
 
 ## diagnostics
@@ -158,10 +428,59 @@ Get LSP diagnostics from Neovim.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `bufnr` | number | No | Buffer number. Omit for all buffers, 0 for current |
-| `severity` | `error` \| `warn` \| `info` \| `hint` \| `all` | No | Filter by severity (default: `all`) |
+| `severity` | `error` \| `warning` \| `info` \| `hint` \| `all` | No | Filter by severity (default: `all`) |
 | `path` | string | No | Filter to files matching this path pattern |
-| `scan_dir` | string | No | Directory to scan for files |
+| `scan_dir` | string | No | Directory to scan for files (opens files to trigger LSP) |
 | `pattern` | string | No | Glob pattern for scan_dir (default: `**/*.lua`) |
+
+### MCP Examples
+
+**Get all diagnostics for current buffer:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "diagnostics",
+    "arguments": { "bufnr": 0, "severity": "error" }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "total": 2,
+  "counts": { "error": 2, "warning": 0, "info": 0, "hint": 0 },
+  "files": [
+    {
+      "file": "/home/user/project/init.lua",
+      "count": 2,
+      "diagnostics": [
+        { "line": 10, "col": 5, "severity": "error", "message": "Undefined global `foo`", "source": "Lua Diagnostics.", "code": "undefined-global" },
+        { "line": 25, "col": 12, "severity": "error", "message": "Type mismatch", "source": "Lua Diagnostics." }
+      ]
+    }
+  ]
+}
+```
+
+**Scan a directory for diagnostics:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "diagnostics",
+    "arguments": { "scan_dir": "lua/buddy", "pattern": "**/*.lua", "severity": "error" }
+  }
+}
+```
+
+!!! note "scan_dir behavior"
+    When `scan_dir` is provided, buddy.nvim opens matching files to trigger LSP analysis, waits up to 10 seconds for diagnostics, then returns results. Temporary buffers are wiped after scanning.
 
 ---
 
@@ -308,11 +627,39 @@ Scaffold a new buddy Lua tool with the correct structure.
 | `description` | string | No | Tool description |
 | `path` | string | No | Custom path for tool (default: `stdpath('data')/buddy-tools/`) |
 
+### MCP Example
+
+**Create a new tool:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "init",
+    "arguments": { "name": "my_helper", "description": "A custom helper tool" }
+  }
+}
+```
+
+The tool creates a complete plugin structure at `~/.local/share/nvim/buddy-tools/my_helper/` with:
+
+```
+my_helper/
+  plugin/my_helper.lua     -- Commands & keymaps (entry point)
+  lua/
+    my_helper/
+      buddy.lua            -- MCP tool definition (discovered by buddy.nvim)
+      init.lua             -- Public API
+      config.lua           -- Configuration with defaults
+```
+
 ---
 
 ## viz
 
 Visualization tool for images, charts, and diagrams.
+
+*Provided by the companion plugin `buddy_viz`.*
 
 ### Parameters
 
@@ -333,6 +680,8 @@ Visualization tool for images, charts, and diagrams.
 
 View all buddy tools and navigate to their source files.
 
+*Provided by the companion plugin `buddy_core`.*
+
 ### Parameters
 
 None.
@@ -342,6 +691,8 @@ None.
 ## dotfyle_search
 
 Search for Neovim plugins on Dotfyle.
+
+*Provided by the companion plugin `buddy_core`.*
 
 ### Parameters
 
@@ -354,6 +705,8 @@ Search for Neovim plugins on Dotfyle.
 ## lazy_manager
 
 Browse and edit lazy.nvim plugin config files.
+
+*Provided by the companion plugin `buddy_core`.*
 
 ### Parameters
 
