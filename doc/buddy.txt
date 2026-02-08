@@ -147,10 +147,11 @@ OPTION B: DIRECT SSE CONNECTION ~
 Connect directly to a specific Neovim instance by URL. Simpler, but you must
 know the port and can only connect to one session.
 
-⚠️ **Note**: With auth enabled (default), direct connections must send
-`Authorization: Bearer <token>`. If your MCP client cannot send auth headers,
-use `buddy-mcp-proxy`.
 
+  **Note**: With auth enabled (default), the client must send an `Authorization:
+  Bearer <token>` header. The proxy handles this automatically; for direct
+  connections, either configure your client’s auth headers or disable auth in
+  trusted local setups.
 
 OPENCODE
 
@@ -193,11 +194,11 @@ local processes can connect.
     })
 <
 
-⚠️ **Note**: Bearer token authentication is enabled by default (`auth = true`),
-but there is no TLS. If you bind to `0.0.0.0`, the token is sent in plaintext.
-Consider: - Using a firewall to restrict access - SSH tunneling for remote
-access - Only enabling on trusted networks
 
+  **Note**: Bearer token authentication is enabled by default (`auth = true`),
+  but there is no TLS. If you bind to `0.0.0.0`, the token is sent in plaintext.
+  Consider: - Using a firewall to restrict access - SSH tunneling for remote
+  access - Only enabling on trusted networks
 ------------------------------------------------------------------------------
 
 BUILT-IN TOOLS                               *buddy-buddy.nvim-built-in-tools*
@@ -219,12 +220,14 @@ BUILT-IN TOOLS                               *buddy-buddy.nvim-built-in-tools*
   register      Access Neovim registers
   status        Get cursor, mode, marks, registers
   init          Scaffold new user tools
+See docs/tools.md <docs/tools.md> for full reference with MCP JSON examples.
+
 ------------------------------------------------------------------------------
 
 CREATING TOOLS                               *buddy-buddy.nvim-creating-tools*
 
-Tools are defined in a `buddy.lua` file at `lua/{plugin}/buddy.lua`. buddy
-discovers these automatically.
+Tools live in `lua/{plugin}/buddy.lua` files. buddy.nvim discovers them
+automatically from the runtimepath.
 
 
 FORMAT 1: TOOLS LIST ~
@@ -249,6 +252,20 @@ For plugins with one or more independent tools:
             return "Hello, " .. args.name
           end,
         },
+        {
+          name = "farewell",
+          description = "Say goodbye",
+          input_schema = {
+            type = "object",
+            properties = {
+              name = { type = "string", description = "Name to farewell" },
+            },
+            required = { "name" },
+          },
+          run = function(args)
+            return "Goodbye, " .. args.name
+          end,
+        },
       }
     }
 <
@@ -259,9 +276,10 @@ FORMAT 2: SINGLE TOOL ~
 For plugins that expose exactly one tool:
 
 >lua
+    -- lua/my-plugin/buddy.lua
     return {
       name = "my_tool",
-      description = "Does something",
+      description = "Does a thing",
       input_schema = {
         type = "object",
         properties = {
@@ -270,35 +288,33 @@ For plugins that expose exactly one tool:
         required = {},
       },
       run = function(args)
-        vim.notify(args.message or "hello")
+        vim.notify("Did the thing with: " .. (args.message or "nothing"))
         return { success = true }
       end,
     }
 <
 
 
-TOOL FORMAT ~
+RETURNING RESULTS ~
 
-Individual tools use this format:
+Tools return **raw Lua values**. buddy.nvim wraps them into MCP responses
+automatically:
 
 >lua
-    return {
-      name = "tool_name",           -- Tool name
-      description = "What it does", -- Required
-      input_schema = {              -- JSON Schema for parameters
-        type = "object",
-        properties = {
-          param1 = { type = "string", description = "A parameter" },
-          action = { type = "string", enum = { "a", "b" }, description = "a: do A, b: do B" },
-        },
-        required = { "action" },
-      },
-      run = function(args)          -- Handler function
-        return { success = true, result = "..." }
-      end,
-    }
+    -- String → text content block
+    return "Hello, world!"
+    
+    -- Table → JSON-encoded text content block
+    return { success = true, data = "result" }
+    
+    -- nil → text content block with "nil"
+    return nil
 <
 
+
+  **Common mistake**: Don’t return MCP envelopes like `{ content = { { type =
+  "text", text = "..." } } }` from your tools. Just return the raw value.
+  buddy.nvim wraps it for you.
 
 ADDING KEYMAPS, COMMANDS, AUTOCMDS ~
 
@@ -341,14 +357,14 @@ keymap - Works via `:MyTool` command - Runs on `BufEnter` for markdown files
 
 Edit the file, keymaps and commands update automatically. No restart needed.
 
+See docs/creating-tools.md <docs/creating-tools.md> for the full guide.
+
 ------------------------------------------------------------------------------
 
 CONFIGURATION                                 *buddy-buddy.nvim-configuration*
 
 >lua
-    local buddy = require("buddy")
-    
-    buddy.setup({
+    require("buddy").setup({
       host = "127.0.0.1",  -- Bind address (default: "127.0.0.1" for security)
       port = 7234,         -- Server port (default: 7234)
       auto_start = false,  -- Start on VimEnter (default: false)
@@ -386,6 +402,9 @@ API                                                     *buddy-buddy.nvim-api*
     -- Check status
     local status = buddy.status()
     -- { running = true, port = 7234 }
+    
+    -- Call a tool programmatically
+    local result = buddy.call("buffer", { action = "list" })
     
     -- Register a tool programmatically
     buddy.register_tool({
@@ -434,8 +453,8 @@ Check `:messages` for errors. Common issues: - Syntax errors in your tool file
 
 SSE CONNECTION FAILING ~
 
-Ensure: 1. buddy.nvim is running (`:lua
-print(require('buddy').status().running)`) 2. The URL matches your config
+Ensure: 1. buddy.nvim is running: `:lua
+print(require('buddy').status().running)` 2. The URL matches your config
 (default: `http://127.0.0.1:7234/sse`) 3. No firewall blocking the connection
 
 ------------------------------------------------------------------------------
