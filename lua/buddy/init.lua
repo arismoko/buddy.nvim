@@ -17,6 +17,7 @@
 ---@tag buddy
 ---@toc_entry Introduction
 
+local log = require("buddy.log")
 local M = {}
 
 M._server = nil
@@ -70,6 +71,18 @@ function M.start()
     vim.notify("[buddy] Already running", vim.log.levels.WARN)
     return
   end
+
+  -- Force runtime creation so event bus is available for SSE connections
+  local rt = M.runtime()
+
+  -- Wire session_disconnected listener for centralized cleanup
+  -- (Hub handles store cleanup directly, but event bus listeners allow
+  -- other subsystems to react to disconnects)
+  rt.event_bus:subscribe("session_disconnected", function(payload)
+    if payload and payload.session_id then
+      log.debug("Session disconnected event: %s", payload.session_id)
+    end
+  end)
 
   -- Load built-in tools
   local registry = require("buddy.tools")
@@ -166,6 +179,30 @@ function M.stop()
 
   -- Reset runtime singletons so next start() gets fresh state
   M._runtime = nil
+
+  -- Reset Hub singleton
+  local hub_ok, SSEHub = pcall(require, "buddy.transport.sse.hub")
+  if hub_ok then
+    SSEHub.reset()
+  end
+
+  -- Reset router wiring (notifier, ToolService) so restart gets fresh closures
+  local router_ok, router = pcall(require, "buddy.server.router")
+  if router_ok then
+    router._reset()
+  end
+
+  -- Reset client_requests singleton so restart doesn't use stale Hub references
+  local cr_ok, cr = pcall(require, "buddy.mcp.client_requests")
+  if cr_ok and cr._reset then
+    cr._reset()
+  end
+
+  -- Clear stale notify callback so restart doesn't use old Hub references
+  local methods_ok, methods = pcall(require, "buddy.mcp.methods")
+  if methods_ok then
+    methods.set_notify_callback(nil)
+  end
 
   require("buddy.tools").clear()
 end

@@ -1,4 +1,3 @@
-local sse = require("buddy.server.sse")
 local log = require("buddy.log")
 local client_requests = require("buddy.mcp.client_requests")
 local uv = vim.uv
@@ -79,21 +78,18 @@ function M.handle(http_server, client, request, body)
 end
 
 function M._handle_sse(http_server, client, _request)
-  local sse_manager = sse.SSEManager.get_instance()
+  local SSEHub = require("buddy.transport.sse.hub")
+  local hub = SSEHub.get_instance(http_server)
 
-  local session_id, sse_conn = sse_manager:create_session(client, http_server.port)
-
-  http_server.sse_connections[session_id] = sse_conn
+  local session_id, _sse_conn = hub:open_session(client, http_server.port)
 
   -- Wire notifier once (not per session) to route notifications through Notifier service
   if not _notifier_wired then
-    local SSEHub = require("buddy.transport.sse.hub")
     local Notifier = require("buddy.services.notifier")
-    local hub = SSEHub.get_instance(http_server)
 
     local notifier = Notifier.new({
-      send_fn = function(session_id, msg)
-        return hub:send_to_session(session_id, msg)
+      send_fn = function(sid, msg)
+        return hub:send_to_session(sid, msg)
       end,
       broadcast_fn = function(msg)
         hub:broadcast(msg)
@@ -105,12 +101,14 @@ function M._handle_sse(http_server, client, _request)
       notifier:broadcast(notification.method, notification.params)
     end)
 
+    -- Wire ToolService singleton with notifier for progress notifications
+    local ToolService = require("buddy.services.tool_service")
+    ToolService.set_instance(ToolService.new({
+      notifier = notifier,
+    }))
+
     _notifier_wired = true
     log.debug("Notifier wired via SSEHub (once)")
-  else
-    -- Ensure hub has latest http_server reference for new connections
-    local SSEHub = require("buddy.transport.sse.hub")
-    SSEHub.get_instance(http_server)
   end
 
   log.debug(string.format("SSE session created: %s", session_id))
@@ -129,8 +127,9 @@ function M._handle_message(http_server, client, request, body)
     return
   end
 
-  local sse_manager = sse.SSEManager.get_instance()
-  local sse_conn = sse_manager:get_session(session_id)
+  local SSEHub = require("buddy.transport.sse.hub")
+  local hub = SSEHub.get_instance(http_server)
+  local sse_conn = hub:get_session(session_id)
 
   if not sse_conn then
     http_server:send_response(client, 404, {["Content-Type"] = "application/json"}, vim.json.encode({
@@ -197,9 +196,10 @@ function M._handle_message(http_server, client, request, body)
 
     -- Send response via SSE stream (use unnamed event for MCP SDK compatibility)
     if response then
-      local sent = sse_conn:send_data(response)
+      local sent = hub:send_to_session(session_id, response)
       if not sent then
-        log.warn(string.format("Failed to send SSE response for session %s", session_id))
+        log.warn(string.format("Failed to send SSE response for session %s, closing dead session", session_id))
+        hub:close_session(session_id)
       end
     else
       log.warn(string.format("No response to send for session %s", session_id))
@@ -245,6 +245,10 @@ end
 --- Reset internal state (for testing)
 function M._reset()
   _notifier_wired = false
+  local ok, ToolService = pcall(require, "buddy.services.tool_service")
+  if ok then
+    ToolService.reset()
+  end
 end
 
 return M

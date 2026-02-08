@@ -148,6 +148,53 @@ function M.execute(tool_id, args, opts)
   return cancel_or_result, nil
 end
 
+--- Execute a tool asynchronously using nio futures
+--- Returns a nio future that resolves to {result=...} or {error=...}
+--- This is the canonical async execution path. execute() is the sync adapter.
+---@param tool_id string
+---@param args table
+---@param opts table|nil Options { session_id?, progress_token?, on_progress? }
+---@return table nio_future A future with :wait() that returns the result
+---@return string|nil task_id For cancellation
+function M.execute_async(tool_id, args, opts)
+  local nio = require("buddy.dep.nio")
+  local future = nio.control.future()
+  opts = opts or {}
+
+  -- Use the callback-based execute() internally
+  local exec_opts = {
+    session_id = opts.session_id,
+    on_progress = opts.on_progress,
+    callback = function(err, result)
+      if future.is_set() then return end
+      if err then
+        future.set({ error = err })
+      else
+        future.set({ result = result })
+      end
+    end,
+  }
+
+  local exec_ok, sync_result_or_err, task_id = pcall(M.execute, tool_id, args, exec_opts)
+
+  if not exec_ok then
+    -- Synchronous throw: resolve future with error instead of propagating.
+    -- Preserve structured error tables (from errors.throw) rather than stringifying.
+    if not future.is_set() then
+      future.set({ error = sync_result_or_err })
+    end
+    return future, nil
+  end
+
+  -- If tool completed synchronously (task_id is nil), resolve the future.
+  -- Check task_id rather than result value because sync tools may legitimately return nil.
+  if task_id == nil and not future.is_set() then
+    future.set({ result = sync_result_or_err })
+  end
+
+  return future, task_id
+end
+
 --- Cancel a running async task
 ---@param task_id string
 ---@return boolean success
