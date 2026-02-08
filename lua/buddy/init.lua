@@ -192,6 +192,12 @@ function M.stop()
     router._reset()
   end
 
+  -- Reset client_requests singleton so restart doesn't use stale Hub references
+  local cr_ok, cr = pcall(require, "buddy.mcp.client_requests")
+  if cr_ok and cr._reset then
+    cr._reset()
+  end
+
   -- Clear stale notify callback so restart doesn't use old Hub references
   local methods_ok, methods = pcall(require, "buddy.mcp.methods")
   if methods_ok then

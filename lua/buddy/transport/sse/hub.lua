@@ -168,6 +168,13 @@ function SSEHub:get_session_ids()
   return ids
 end
 
+--- Get an SSE connection by session ID
+---@param session_id string
+---@return table|nil sse_conn The SSE connection, or nil if not found
+function SSEHub:get_session(session_id)
+  return self._manager:get_session(session_id)
+end
+
 --- Close all sessions (used during server shutdown)
 function SSEHub:close_all()
   local session_ids = self:get_session_ids()

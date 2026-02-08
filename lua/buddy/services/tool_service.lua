@@ -86,6 +86,13 @@ function ToolService:call(session_id, params, _request_id)
     return errors.to_mcp_response(result)
   end
 
+  -- Guard: async tools return a cancel function from the sync path.
+  -- This happens when a tool is async-only but called through the sync executor.
+  -- We can't serialize a function, so return an error instead.
+  if type(result) == "function" then
+    return errors.to_mcp_response("Tool '" .. tool_name .. "' requires async execution")
+  end
+
   return self:_shape_result(result, tool)
 end
 

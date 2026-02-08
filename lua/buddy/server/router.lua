@@ -127,9 +127,9 @@ function M._handle_message(http_server, client, request, body)
     return
   end
 
-  local sse = require("buddy.server.sse")
-  local sse_manager = sse.SSEManager.get_instance()
-  local sse_conn = sse_manager:get_session(session_id)
+  local SSEHub = require("buddy.transport.sse.hub")
+  local hub = SSEHub.get_instance(http_server)
+  local sse_conn = hub:get_session(session_id)
 
   if not sse_conn then
     http_server:send_response(client, 404, {["Content-Type"] = "application/json"}, vim.json.encode({
@@ -196,9 +196,10 @@ function M._handle_message(http_server, client, request, body)
 
     -- Send response via SSE stream (use unnamed event for MCP SDK compatibility)
     if response then
-      local sent = sse_conn:send_data(response)
+      local sent = hub:send_to_session(session_id, response)
       if not sent then
-        log.warn(string.format("Failed to send SSE response for session %s", session_id))
+        log.warn(string.format("Failed to send SSE response for session %s, closing dead session", session_id))
+        hub:close_session(session_id)
       end
     else
       log.warn(string.format("No response to send for session %s", session_id))
