@@ -5,7 +5,7 @@ Table of Contents                                    *buddy-table-of-contents*
 
 1. buddy.nvim                                               |buddy-buddy.nvim|
   - Installation                               |buddy-buddy.nvim-installation|
-  - Connecting to MCP Clients     |buddy-buddy.nvim-connecting-to-mcp-clients|
+  - Connecting MCP Clients           |buddy-buddy.nvim-connecting-mcp-clients|
   - Security                                       |buddy-buddy.nvim-security|
   - Built-in Tools                           |buddy-buddy.nvim-built-in-tools|
   - Creating Tools                           |buddy-buddy.nvim-creating-tools|
@@ -81,29 +81,43 @@ Clone to your Neovim packages directory:
 
 ------------------------------------------------------------------------------
 
-CONNECTING TO MCP CLIENTS         *buddy-buddy.nvim-connecting-to-mcp-clients*
+CONNECTING MCP CLIENTS               *buddy-buddy.nvim-connecting-mcp-clients*
 
-nvim-buddy uses **HTTP + Server-Sent Events (SSE)** transport, compatible with
+buddy.nvim uses **HTTP + Server-Sent Events (SSE)** transport, compatible with
 modern MCP clients.
 
+There are two ways to connect:
 
-OPENCODE ~
+
+OPTION A: VIA PROXY (RECOMMENDED) ~
+
+The `buddy-mcp-proxy` <https://www.npmjs.com/package/buddy-mcp-proxy>
+automatically discovers running Neovim sessions and supports switching between
+multiple instances. No port configuration needed. Requires Node.js
+<https://nodejs.org/> 20+.
+
+>bash
+    npm install -g buddy-mcp-proxy
+<
+
+
+OPENCODE
 
 Add to `~/.config/opencode/opencode.jsonc`:
 
 >jsonc
     {
       "mcp": {
-        "buddy": {
-          "type": "remote",
-          "url": "http://127.0.0.1:7234/sse"
+        "vim": {
+          "type": "local",
+          "command": ["npx", "buddy-mcp-proxy"]
         }
       }
     }
 <
 
 
-CLAUDE DESKTOP ~
+CLAUDE DESKTOP
 
 Add to your Claude Desktop config: - **macOS**: `~/Library/Application
 Support/Claude/claude_desktop_config.json` - **Windows**:
@@ -113,7 +127,41 @@ Support/Claude/claude_desktop_config.json` - **Windows**:
 >json
     {
       "mcpServers": {
-        "buddy": {
+        "vim": {
+          "command": "npx",
+          "args": ["buddy-mcp-proxy"]
+        }
+      }
+    }
+<
+
+
+OPTION B: DIRECT SSE CONNECTION ~
+
+Connect directly to a specific Neovim instance by URL. Simpler, but you must
+know the port and can only connect to one session.
+
+
+OPENCODE
+
+>jsonc
+    {
+      "mcp": {
+        "vim": {
+          "type": "remote",
+          "url": "http://127.0.0.1:7234/sse"
+        }
+      }
+    }
+<
+
+
+CLAUDE DESKTOP
+
+>json
+    {
+      "mcpServers": {
+        "vim": {
           "url": "http://127.0.0.1:7234/sse"
         }
       }
