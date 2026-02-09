@@ -465,7 +465,10 @@ async function main() {
   poller.start();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     if (downstream.isConnected()) {
-      await downstream.checkHealth();
+      const healthy = await downstream.checkHealth();
+      if (!healthy) {
+        poller.ensure();
+      }
     }
     const downstreamTools = downstream.getTools();
     const allTools = [...META_TOOLS, ...downstreamTools];
