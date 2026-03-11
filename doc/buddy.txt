@@ -44,7 +44,7 @@ LAZY.NVIM ~
     {
       "arismoko/buddy.nvim",
       dependencies = {
-        "echasnovski/mini.nvim",
+        "nvim-mini/mini.nvim",
         "nvim-neotest/nvim-nio",
       },
       lazy = false,
@@ -64,7 +64,7 @@ PACKER.NVIM ~
     use {
       "arismoko/buddy.nvim",
       requires = {
-        "echasnovski/mini.nvim",
+        "nvim-mini/mini.nvim",
         "nvim-neotest/nvim-nio",
       },
       config = function()
@@ -98,9 +98,9 @@ There are two ways to connect:
 OPTION A: VIA PROXY (RECOMMENDED) ~
 
 The `buddy-mcp-proxy` <https://www.npmjs.com/package/buddy-mcp-proxy>
-automatically discovers running Neovim sessions and supports switching between
-multiple instances. No port configuration needed. Requires Node.js
-<https://nodejs.org/> 20+.
+automatically discovers running Neovim sessions, forwards auth tokens for you,
+and supports switching between multiple instances. No port configuration
+needed. Requires Node.js <https://nodejs.org/> 20+.
 
 >bash
     npm install -g buddy-mcp-proxy
@@ -152,6 +152,11 @@ know the port and can only connect to one session.
   Bearer <token>` header. The proxy handles this automatically; for direct
   connections, either configure your client’s auth headers or disable auth in
   trusted local setups.
+
+  **Tip**: buddy.nvim tools only appear while a buddy-enabled Neovim session is
+  actually running. If your client starts before Neovim, either launch Neovim
+  first or use `buddy-mcp-proxy`, which will auto-connect when a session comes
+  online.
 
 OPENCODE
 
