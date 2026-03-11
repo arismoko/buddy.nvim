@@ -26,7 +26,7 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 {
   "arismoko/buddy.nvim",
   dependencies = {
-    "echasnovski/mini.nvim",
+    "nvim-mini/mini.nvim",
     "nvim-neotest/nvim-nio",
   },
   lazy = false,
@@ -45,7 +45,7 @@ You write tools in Lua. They work as MCP tools (AI calls them) *and* as regular 
 use {
   "arismoko/buddy.nvim",
   requires = {
-    "echasnovski/mini.nvim",
+    "nvim-mini/mini.nvim",
     "nvim-neotest/nvim-nio",
   },
   config = function()
@@ -75,7 +75,7 @@ There are two ways to connect:
 
 ### Option A: Via Proxy (Recommended)
 
-The [`buddy-mcp-proxy`](https://www.npmjs.com/package/buddy-mcp-proxy) automatically discovers running Neovim sessions and supports switching between multiple instances. No port configuration needed. Requires [Node.js](https://nodejs.org/) 20+.
+The [`buddy-mcp-proxy`](https://www.npmjs.com/package/buddy-mcp-proxy) automatically discovers running Neovim sessions, forwards auth tokens for you, and supports switching between multiple instances. No port configuration needed. Requires [Node.js](https://nodejs.org/) 20+.
 
 ```bash
 npm install -g buddy-mcp-proxy
@@ -119,6 +119,8 @@ Add to your Claude Desktop config:
 Connect directly to a specific Neovim instance by URL. Simpler, but you must know the port and can only connect to one session.
 
 > **Note**: With auth enabled (default), the client must send an `Authorization: Bearer <token>` header. The proxy handles this automatically; for direct connections, either configure your client's auth headers or disable auth in trusted local setups.
+
+> **Tip**: buddy.nvim tools only appear while a buddy-enabled Neovim session is actually running. If your client starts before Neovim, either launch Neovim first or use `buddy-mcp-proxy`, which will auto-connect when a session comes online.
 
 #### OpenCode
 
