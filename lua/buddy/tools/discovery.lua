@@ -22,11 +22,19 @@ function M.discover()
   log.debug("Discovering runtimepath tools")
   local hotreload = require("buddy.tools.hotreload")
   local count = 0
-  
+
+  -- Exclude the user's own nvim config dir to avoid false-positive matches
+  -- (e.g. ~/.config/nvim/lua/plugins/buddy.lua is a lazy spec, not a tool pack)
+  local config_dir = vim.fn.stdpath("config")
+
   -- Pattern: buddy.lua files
   local buddy_files = vim.api.nvim_get_runtime_file("lua/*/buddy.lua", true)
   
   for _, path in ipairs(buddy_files) do
+    if path:sub(1, #config_dir) == config_dir then
+      log.debug("Skipping config-dir path: %s", path)
+      goto continue
+    end
     -- Pattern: lua/{plugin}/buddy.lua
     local prefix = path:match("lua/([^/]+)/buddy%.lua$")
     if prefix then
@@ -64,6 +72,7 @@ function M.discover()
         log.warn("Failed to load buddy pack %s: %s", module, tostring(pack))
       end
     end
+    ::continue::
   end
   
   log.debug("Registered %d runtimepath tools", count)
