@@ -32,7 +32,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/arismoko/buddy.nvim.git",
+    "url": "git+https://github.com/arismoko/buddy.nvim.git",
     "directory": "mcp/buddy-mcp-proxy"
   },
   "homepage": "https://github.com/arismoko/buddy.nvim/tree/main/mcp/buddy-mcp-proxy",
