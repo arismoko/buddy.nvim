@@ -90,6 +90,9 @@ function M.start()
   local registry = require("buddy.tools")
   registry.load_builtins()
 
+  -- Require config early so it's available for extras loading below
+  local config = require("buddy.config")
+
   -- Load companion plugins listed in extras = { "buddy_core", "buddy_viz" }
   -- They ship inside the buddy.nvim repo under plugins/ and are already on disk
   -- after any package manager install; we just need to put them on runtimepath.
@@ -162,7 +165,6 @@ function M.start()
 
   -- Start server
   local server = require("buddy.server")
-  local config = require("buddy.config")
   local cfg = config.get()
 
   -- Generate auth token if auth is enabled
