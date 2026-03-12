@@ -16,15 +16,14 @@
       dependencies = {
         "echasnovski/mini.nvim",
         "nvim-neotest/nvim-nio",
-        -- Optional: Companion plugins
-        -- { "arismoko/buddy_core.nvim" }, -- Core tools (buddy_manager, dotfyle, lazy)
-        -- { "arismoko/buddy_viz.nvim" },  -- Visualization tools (charts, images)
       },
       lazy = false,
       config = function()
         require("buddy").setup({
           auto_start = true,
           port = 7234,
+          -- Recommended: enable buddy_core for BuddyManager and other built-in tools
+          extras = { "buddy_core" },
         })
       end,
     }
@@ -139,6 +138,49 @@ Connect directly to a specific Neovim instance by URL. Simpler, but you must kno
   }
 }
 ```
+
+## Companion Tools (Recommended)
+
+buddy.nvim ships with optional companion tools bundled inside the repo. Enable them via the `extras` option:
+
+```lua
+require("buddy").setup({
+  extras = { "buddy_core" },  -- adds BuddyManager, DotfyleSearch, LazyManager
+})
+```
+
+### BuddyManager
+
+`:BuddyManager` opens an interactive picker to browse all installed buddy tools and jump directly to their source files. It's the fastest way to explore what's available or debug a custom tool.
+
+```vim
+:BuddyManager
+```
+
+You can also bind it to a key:
+
+```lua
+vim.keymap.set("n", "<leader>bb", "<Plug>(BuddyManager)", { desc = "Buddy Manager" })
+```
+
+### Other buddy_core tools
+
+| Command | Description |
+|---------|-------------|
+| `:DotfyleSearch` | Search for Neovim plugins on dotfyle.com |
+| `:LazyManager` | Browse and jump to lazy.nvim plugin config files |
+
+### buddy_viz (optional)
+
+For visualization tools (charts, image viewing, Pikchr diagrams):
+
+```lua
+require("buddy").setup({
+  extras = { "buddy_core", "buddy_viz" },
+})
+```
+
+---
 
 ## Verify Installation
 
