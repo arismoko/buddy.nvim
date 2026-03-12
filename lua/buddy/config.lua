@@ -11,6 +11,7 @@ local defaults = {
   auth = true,  -- Require Bearer token auth on HTTP endpoints (recommended)
   watch = true,  -- Enable hot reload file watching
   log_level = "info",
+  extras = {},  -- Companion plugins to activate, e.g. { "buddy_core", "buddy_viz" }
   tools = {
     disabled = {},  -- List of tool names to exclude (e.g., {"vim_buffer", "vim_diagnostics"})
   },

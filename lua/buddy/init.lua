@@ -53,12 +53,14 @@ end
 ---@field auth boolean Enable Bearer token auth on HTTP endpoints (default: true)
 ---@field watch boolean Enable hot reload file watching (default: true)
 ---@field debug boolean Enable debug logging (default: false)
+---@field extras string[] Companion plugins to activate from the plugins/ directory (default: {})
 ---@field tools table Tool configuration
 ---@field tools.disabled string[] List of tool names to exclude (e.g., {"buffer", "diagnostics"})
 ---
 ---@usage `require("buddy").setup({ auto_start = true })`
 ---@usage `require("buddy").setup({ watch = false })` -- disable hot reload
 ---@usage `require("buddy").setup({ tools = { disabled = { "buffer", "diagnostics" } } })`
+---@usage `require("buddy").setup({ extras = { "buddy_core", "buddy_viz" } })` -- enable companion plugins
 function M.setup(opts)
   local config = require("buddy.config")
   config.setup(opts)
@@ -87,6 +89,42 @@ function M.start()
   -- Load built-in tools
   local registry = require("buddy.tools")
   registry.load_builtins()
+
+  -- Load companion plugins listed in extras = { "buddy_core", "buddy_viz" }
+  -- They ship inside the buddy.nvim repo under plugins/ and are already on disk
+  -- after any package manager install; we just need to put them on runtimepath.
+  local cfg_extras = config.get().extras or {}
+  if #cfg_extras > 0 then
+    -- Resolve the buddy.nvim install directory from this file's path:
+    -- .../buddy.nvim/lua/buddy/init.lua -> .../buddy.nvim
+    local buddy_root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h:h")
+    local plugins_dir = buddy_root .. "/plugins"
+    for _, extra_name in ipairs(cfg_extras) do
+      local extra_path = plugins_dir .. "/" .. extra_name
+      if vim.fn.isdirectory(extra_path) == 1 then
+        local rtp = vim.o.runtimepath
+        local is_new = not rtp:find(extra_path, 1, true)
+        if is_new then
+          vim.o.runtimepath = vim.o.runtimepath .. "," .. extra_path
+          -- Source plugin/ files since we're past startup
+          local plugin_dir = extra_path .. "/plugin"
+          if vim.fn.isdirectory(plugin_dir) == 1 then
+            for pname, ptype in vim.fs.dir(plugin_dir) do
+              if ptype == "file" and pname:match("%.lua$") then
+                local ok, err = pcall(vim.cmd.source, plugin_dir .. "/" .. pname)
+                if not ok then
+                  vim.notify("[buddy] Failed to source extra " .. extra_name .. "/" .. pname .. ": " .. tostring(err), vim.log.levels.WARN)
+                end
+              end
+            end
+          end
+          log.debug("Loaded extra: %s", extra_name)
+        end
+      else
+        vim.notify("[buddy] Extra not found: " .. extra_name .. " (expected at " .. extra_path .. ")", vim.log.levels.WARN)
+      end
+    end
+  end
 
   -- Add each tool subdirectory to runtimepath (not just the parent)
   -- and source their plugin files (since we're past startup)
