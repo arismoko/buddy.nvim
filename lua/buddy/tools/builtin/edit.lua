@@ -47,8 +47,10 @@ return {
     -- Convert content to table if it's a string
     local lines = args.content
     if type(lines) == "string" then
+      -- Unescape common escape sequences so callers can pass \n, \t, \r as escape sequences
+      local unescaped = args.content:gsub("\\n", "\n"):gsub("\\t", "\t"):gsub("\\r", "\r")
       -- Split string by newline (preserving empty lines)
-      lines = vim.split(args.content, "\n", { plain = true })
+      lines = vim.split(unescaped, "\n", { plain = true })
     elseif not lines then
       lines = {}
     end

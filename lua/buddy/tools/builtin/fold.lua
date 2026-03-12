@@ -31,9 +31,20 @@ return {
         return { success = false, error = "start_line and end_line required for create action" }
       end
 
+      -- Ensure foldmethod is manual; fold creation requires it
+      local prev_foldmethod = vim.wo.foldmethod
+      if prev_foldmethod ~= "manual" then
+        vim.wo.foldmethod = "manual"
+      end
+
       -- Set cursor to start line
       vim.api.nvim_win_set_cursor(0, { args.start_line, 0 })
-      vim.cmd(args.start_line .. "," .. args.end_line .. "fold")
+      local ok, err = pcall(vim.cmd, args.start_line .. "," .. args.end_line .. "fold")
+      if not ok then
+        -- Restore foldmethod on failure
+        vim.wo.foldmethod = prev_foldmethod
+        return { success = false, error = "Failed to create fold: " .. tostring(err) }
+      end
 
       return { success = true, start_line = args.start_line, end_line = args.end_line }
 

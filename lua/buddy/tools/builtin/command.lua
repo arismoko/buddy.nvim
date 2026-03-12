@@ -47,7 +47,23 @@ return {
     local ok, result = pcall(vim.api.nvim_exec2, cmd, { output = true })
 
     if ok then
-      return { success = true, cmd = cmd, output = result.output ~= "" and result.output or nil }
+      local output = result.output
+      -- Collect any Vim error/warning lines from output (e.g. E31, E350) as warnings
+      -- The command itself succeeded, but callers should know about noisy autocommand errors
+      local warnings = {}
+      if output and output ~= "" then
+        for line in output:gmatch("[^\n]+") do
+          if line:match("^E%d+:") or line:match("^Error detected") then
+            table.insert(warnings, line)
+          end
+        end
+      end
+      return {
+        success = true,
+        cmd = cmd,
+        output = output ~= "" and output or nil,
+        warnings = #warnings > 0 and warnings or nil,
+      }
     else
       return { success = false, error = tostring(result) }
     end
